@@ -1,0 +1,80 @@
+# Secrets — NEVER commit env files. Use .env.example for documentation only.
+.env
+.env.*
+!.env.example
+forge-server/.env
+forge-ui-new/.env
+forge/.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# Node
+node_modules/
+.pnp.*
+*.tsbuildinfo
+
+# Build / dist
+dist/
+build/
+.next/
+.svelte-kit/
+.turbo/
+.cache/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Forge runtime — generated app data. Two roots historically:
+#   /forge-data/         — current canonical location (docker mount + dev.sh)
+#   /forge/local-data/   — legacy path still used by some flows; ignore too
+# Each project workspace is git init'd by forge-server._scaffold_workspace,
+# so they live as standalone repos — NEVER stage them into the TP repo.
+/forge-data/
+/forge/local-data/
+# Catch every sqlite database location — historically we've had forge.db at
+# the repo root, under forge-server/, and under forge/ (legacy CLI module).
+# A path-anchored entry per location is brittle: the next subfolder that gets
+# a sqlite file would leak. `**/forge.db` + the sqlite/db globs below cover
+# them all and any future ones, encrypted contents included.
+**/forge.db
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# dev.sh local XDG_CONFIG_HOME for opencode (rendered from
+# forge-opencode-config/opencode.json with /forge-skills substituted to the
+# host path). Regenerated on every dev.sh run.
+/forge-opencode-config-local/
+
+# forge-llm-proxy logs (request/response bodies — may contain prompt text but
+# never API keys; the proxy scrubs them). Local dev only.
+/forge-llm-proxy-logs/
+
+# Logs
+*.log
+.opencode/skills/terminal-support/.last_run.log
+
+# Local scratch
+.scratch/
+tmp/
+
+# Ad-hoc archives at repo root — uploaded references, build snapshots, etc.
+# Don't commit by default; opt back in with `git add -f <file>.zip` if a
+# specific archive is genuinely project-versioned.
+/*.zip
+/*.tar
+/*.tar.gz
+/*.tgz

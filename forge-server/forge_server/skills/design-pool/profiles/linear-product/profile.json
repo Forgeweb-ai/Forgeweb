@@ -1,0 +1,437 @@
+{
+  "$schema_comment": "A complete design profile. design-analyst returns a spec referencing tokens defined here; main agent generates code using only those tokens.",
+  "id": "linear-product",
+  "version": "1.0.0",
+  "updated_at": "2026-05-26",
+  "archetype": "modern-product",
+  "one_line": "Monochromatic with one vibrant accent. Inter throughout. Geometric, dense, precise. Feels like Linear, Vercel, Raycast, Arc, or Cursor.",
+  "inspired_by": [
+    "Linear",
+    "Vercel dashboard",
+    "Raycast",
+    "Arc Browser",
+    "Cursor",
+    "Geist Design System"
+  ],
+  "palette": {
+    "modes": [
+      "dark",
+      "light"
+    ],
+    "dark": {
+      "background": {
+        "value": "#08090A",
+        "role": "Page background. Near-black with a hint of blue. NOT pure #000."
+      },
+      "surface": {
+        "value": "#101113",
+        "role": "Elevated surfaces (sidebar, modal, cards)."
+      },
+      "surface_subtle": {
+        "value": "#16181C",
+        "role": "Inset surfaces (input fields when not focused, code blocks)."
+      },
+      "surface_active": {
+        "value": "#1E2024",
+        "role": "Hover/active state on interactive surfaces."
+      },
+      "text_primary": {
+        "value": "#F4F4F5",
+        "role": "Body text, headlines. Slightly warm white, never pure #FFF."
+      },
+      "text_secondary": {
+        "value": "#A1A1A6",
+        "role": "Supporting text, metadata, labels, helper text."
+      },
+      "text_muted": {
+        "value": "#62656B",
+        "role": "De-emphasized text, disabled states."
+      },
+      "border": {
+        "value": "#1F2024",
+        "role": "Default dividers, input borders. Very subtle."
+      },
+      "border_strong": {
+        "value": "#2E3036",
+        "role": "Stronger borders (focused input, hover on cards)."
+      },
+      "accent": {
+        "value": "#5E6AD2",
+        "role": "Linear-signature purple-blue. Used SPARINGLY \u2014 primary buttons, key links, focus rings. Never as background fill for large surfaces."
+      },
+      "accent_subtle": {
+        "value": "#5E6AD220",
+        "role": "Accent at 12% opacity for backgrounds (selected row, active tab indicator strip)."
+      },
+      "success": {
+        "value": "#10B981",
+        "role": "Positive states, success badges."
+      },
+      "warning": {
+        "value": "#F59E0B",
+        "role": "Warning states."
+      },
+      "danger": {
+        "value": "#EF4444",
+        "role": "Errors, destructive actions."
+      }
+    },
+    "light": {
+      "background": {
+        "value": "#FFFFFF",
+        "role": "Page background."
+      },
+      "surface": {
+        "value": "#FAFAFA",
+        "role": "Elevated surfaces."
+      },
+      "surface_subtle": {
+        "value": "#F4F4F5",
+        "role": "Inset surfaces."
+      },
+      "surface_active": {
+        "value": "#E4E4E7",
+        "role": "Hover/active state."
+      },
+      "text_primary": {
+        "value": "#18181B",
+        "role": "Body text."
+      },
+      "text_secondary": {
+        "value": "#71717A",
+        "role": "Supporting text."
+      },
+      "text_muted": {
+        "value": "#A1A1AA",
+        "role": "De-emphasized."
+      },
+      "border": {
+        "value": "#E4E4E7",
+        "role": "Default dividers."
+      },
+      "border_strong": {
+        "value": "#D4D4D8",
+        "role": "Stronger borders."
+      },
+      "accent": {
+        "value": "#5E6AD2",
+        "role": "Same accent across modes."
+      },
+      "accent_subtle": {
+        "value": "#5E6AD215",
+        "role": "Accent at low opacity for backgrounds."
+      },
+      "success": {
+        "value": "#059669"
+      },
+      "warning": {
+        "value": "#D97706"
+      },
+      "danger": {
+        "value": "#DC2626"
+      }
+    },
+    "rules": [
+      "Dark mode is the DEFAULT for this profile. Implement light mode only if asked",
+      "Never use pure black (#000) or pure white (#FFF). Always the slight-warmth/coolness variants",
+      "Accent is for PRIMARY buttons, key links, focus rings, active-state indicators. Not for decoration, not for backgrounds of large surfaces",
+      "Default to surface (not background) for cards and panels \u2014 gives the subtle depth this aesthetic needs",
+      "Semantic colors (success, warning, danger) are USED RARELY. A green dot is enough \u2014 never paint a whole banner green for 'connected'"
+    ]
+  },
+  "typography": {
+    "fonts": {
+      "display": {
+        "family": "Inter Display, Inter, -apple-system, system-ui, sans-serif",
+        "google_font": "Inter",
+        "weights": [
+          500,
+          600,
+          700
+        ],
+        "use_for": [
+          "h1",
+          "h2",
+          "h3",
+          "h4"
+        ],
+        "letter_spacing": "-0.025em",
+        "rule": "Inter Display is Inter at large sizes with optical sizing. Modern browsers handle this automatically."
+      },
+      "body": {
+        "family": "Inter, -apple-system, system-ui, sans-serif",
+        "google_font": "Inter",
+        "weights": [
+          400,
+          500,
+          600
+        ],
+        "use_for": [
+          "body text",
+          "labels",
+          "buttons",
+          "form fields"
+        ],
+        "letter_spacing": "-0.01em",
+        "feature_settings": "'cv11', 'ss01', 'ss03'"
+      },
+      "mono": {
+        "family": "Geist Mono, Berkeley Mono, JetBrains Mono, ui-monospace, monospace",
+        "google_font": "Geist Mono",
+        "weights": [
+          400,
+          500
+        ],
+        "use_for": [
+          "code",
+          "keyboard shortcut hints",
+          "numeric tabular data",
+          "IDs and tokens"
+        ],
+        "rule": "Use mono LIBERALLY for this profile. Keyboard hints (\u2318K), IDs, timestamps \u2014 anything that's not prose. It's a signature of the look."
+      }
+    },
+    "scale": {
+      "base_px": 14,
+      "ratio": 1.2,
+      "$rule": "Base is 14px, not 16px \u2014 this profile is denser. Bumps to 16 only for long-form reading surfaces.",
+      "sizes": {
+        "xs": 11,
+        "sm": 12,
+        "base": 14,
+        "md": 15,
+        "lg": 17,
+        "xl": 20,
+        "2xl": 24,
+        "3xl": 30,
+        "4xl": 36,
+        "5xl": 48,
+        "6xl": 60
+      }
+    },
+    "rules": [
+      "Inter for EVERYTHING except code/mono use cases. Don't mix in serifs",
+      "Tabular numbers (font-variant-numeric: tabular-nums) on any numeric column or stat",
+      "Headlines: weight 600, letter-spacing -0.025em. Anything looser looks marketing-y, wrong for product UI",
+      "Line-height: 1.5 for prose, 1.3 for UI labels, 1.1 for large display sizes",
+      "Use ALL CAPS sparingly \u2014 only for tiny labels (xs, weight 500, letter-spacing 0.05em)"
+    ]
+  },
+  "spacing": {
+    "base_px": 4,
+    "scale": [
+      0,
+      2,
+      4,
+      6,
+      8,
+      10,
+      12,
+      16,
+      20,
+      24,
+      32,
+      40,
+      48,
+      64
+    ],
+    "rules": [
+      "DENSE. Default to 1.0\u00d7 what feels right, sometimes 0.75\u00d7",
+      "Between sidebar items: 2-4px",
+      "Between form fields: 16px (not 24px \u2014 too loose for this aesthetic)",
+      "Section gutters: 24-32px (vs editorial-premium's 96-128px)",
+      "Padding inside buttons/inputs: 8px 12px (small) or 10px 14px (default), not 12px 24px"
+    ]
+  },
+  "radius": {
+    "scale": {
+      "none": 0,
+      "sm": 4,
+      "md": 6,
+      "lg": 8,
+      "xl": 12,
+      "full": 9999
+    },
+    "rules": [
+      "Default radius: md (6px). Same as editorial \u2014 neither aesthetic is pill-shaped",
+      "Inputs and buttons: md (6px)",
+      "Cards/panels: lg (8px)",
+      "Modals/dialogs: xl (12px) \u2014 this is the one place to go larger",
+      "Never pill buttons on rectangles. Avatars and chips are obviously full radius"
+    ]
+  },
+  "elevation": {
+    "rules": [
+      "Use the surface-on-surface hierarchy, not shadows. background \u2192 surface \u2192 surface_active",
+      "Shadows allowed for modals/popovers only, and they're SHARP: 0 0 0 1px border, 0 8px 24px rgba(0,0,0,0.4)",
+      "Never use shadows on cards in the main content area \u2014 borders carry the weight",
+      "1px borders are the primary depth tool. Two adjacent surfaces are distinguished by border, not shadow"
+    ]
+  },
+  "components": {
+    "button_primary": {
+      "background": "accent",
+      "color": "white",
+      "border": "none",
+      "radius": "md",
+      "padding": "8px 12px (sm) | 10px 14px (default)",
+      "font": "body weight 500",
+      "font_size": "base",
+      "hover": "brightness 1.05",
+      "rule": "Primary button uses the accent color. Single primary button per visible area \u2014 having two on screen at once is a profile violation"
+    },
+    "button_secondary": {
+      "background": "surface",
+      "color": "text_primary",
+      "border": "1px solid border_strong",
+      "radius": "md",
+      "padding": "10px 14px",
+      "hover": "background surface_active"
+    },
+    "button_ghost": {
+      "background": "transparent",
+      "color": "text_secondary",
+      "border": "none",
+      "hover": "background surface_subtle, color text_primary"
+    },
+    "input_text": {
+      "background": "surface_subtle",
+      "color": "text_primary",
+      "border": "1px solid border",
+      "border_focus": "1px solid accent",
+      "border_focus_glow": "0 0 0 3px accent_subtle",
+      "radius": "md",
+      "padding": "8px 12px",
+      "font_size": "base",
+      "placeholder_color": "text_muted",
+      "rule": "Focus state: border becomes accent, plus a 3px accent-at-12% glow. NOT the browser default orange ring"
+    },
+    "card": {
+      "background": "surface",
+      "border": "1px solid border",
+      "radius": "lg",
+      "padding": "16-24px",
+      "shadow": "none",
+      "hover": "border border_strong (if interactive)"
+    },
+    "keyboard_hint": {
+      "background": "surface_subtle",
+      "color": "text_secondary",
+      "border": "1px solid border",
+      "border_bottom": "1px solid border_strong (creates depth)",
+      "radius": "sm",
+      "padding": "2px 6px",
+      "font": "mono weight 500",
+      "font_size": "xs",
+      "rule": "Use these LIBERALLY. \u2318K, ESC, Tab, \u21b5 everywhere it makes sense. A signature of this look."
+    }
+  },
+  "layout_patterns": {
+    "login": {
+      "pattern": "centered-minimal",
+      "structure": "Single centered card on a near-black background. Logo + headline + form + OAuth. Max-width ~400px. No marketing copy panel, no testimonials \u2014 this profile assumes the user already knows your product.",
+      "do": [
+        "Centered card with subtle border",
+        "OAuth buttons above email (fast path for known users)",
+        "Logo as a small mono-style mark, not a big illustration"
+      ],
+      "dont": [
+        "Side-by-side marketing-and-form layout (that's editorial-premium territory)",
+        "Background imagery",
+        "Multiple competing CTAs"
+      ]
+    },
+    "dashboard": {
+      "pattern": "sidebar-content",
+      "structure": "Fixed left sidebar (240-280px) with sections + items, main content area on the right. Top toolbar with breadcrumb, search (\u2318K hint), user menu. Content area uses cards with 1px borders, no shadows.",
+      "do": [
+        "Mono font for IDs, timestamps, any technical detail",
+        "Keyboard shortcut hints next to action items",
+        "Dense rows (32-40px tall) \u2014 not Airbnb-style 64px+ rows"
+      ],
+      "dont": [
+        "Big colorful illustrations",
+        "Tooltip prose explaining UI (the UI should be self-evident)",
+        "Stat cards with huge numbers in accent color"
+      ]
+    },
+    "marketing_landing": {
+      "pattern": "POSSIBLE_BUT_NOT_IDEAL",
+      "structure": "This profile works for marketing pages aimed at developers/technical audiences (Linear's marketing site is an example). For non-technical audiences, prefer editorial-premium.",
+      "do": [
+        "Hero with the product itself as the visual (screenshot or animated UI)",
+        "Mono accents in copy ('Press \u2318K to start')",
+        "Dense feature grid, not a single hero claim"
+      ]
+    }
+  },
+  "animations": {
+    "library": "gsap or CSS transitions \u2014 both fit",
+    "philosophy": "Micro-interactions only. Product UIs shouldn't have marketing motion. Tight, fast, snappy.",
+    "patterns": {
+      "hover": "Background color 150ms ease-out. Cursor pointer. Subtle border-color shift on cards.",
+      "button_press": "scale(0.98) on active state, 80ms. Releases instantly.",
+      "panel_open": "150-200ms slide-in from edge, ease-out cubic-bezier(0.16, 1, 0.3, 1).",
+      "list_reorder": "GSAP Flip plugin for smooth list reordering \u2014 keeps the technical-precision feel."
+    },
+    "anti_patterns": [
+      "scroll-driven hero animations",
+      "parallax",
+      "celebratory motion (confetti, bounces)"
+    ]
+  },
+  "tailwind_config_snippet": {
+    "$comment": "Drop-in extension. Default to dark mode by setting darkMode: 'class' and applying 'dark' to <html>. Or omit dark mode entirely and just use these as the base.",
+    "theme": {
+      "extend": {
+        "colors": {
+          "bg": "#08090A",
+          "surface": "#101113",
+          "surface-subtle": "#16181C",
+          "surface-active": "#1E2024",
+          "text": "#F4F4F5",
+          "text-secondary": "#A1A1A6",
+          "text-muted": "#62656B",
+          "border": "#1F2024",
+          "border-strong": "#2E3036",
+          "accent": "#5E6AD2"
+        },
+        "fontFamily": {
+          "display": [
+            "Inter Display",
+            "Inter",
+            "system-ui",
+            "sans-serif"
+          ],
+          "body": [
+            "Inter",
+            "system-ui",
+            "sans-serif"
+          ],
+          "mono": [
+            "Geist Mono",
+            "JetBrains Mono",
+            "ui-monospace",
+            "monospace"
+          ]
+        },
+        "letterSpacing": {
+          "tight": "-0.025em",
+          "normal": "-0.01em",
+          "caps": "0.05em"
+        },
+        "borderRadius": {
+          "md": "6px"
+        },
+        "fontSize": {
+          "base": [
+            "14px",
+            {
+              "lineHeight": "1.5"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

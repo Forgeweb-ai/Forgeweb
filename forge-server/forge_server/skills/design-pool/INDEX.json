@@ -1,0 +1,127 @@
+{
+  "$schema_comment": "Lightweight catalog of design profiles. design-analyst reads this first, then loads only the 1-3 candidates that match the user's request. Profiles are sorted from most-versatile (top) to most-specialized (bottom).",
+  "version": "1.1.0",
+  "updated_at": "2026-05-26",
+
+  "profiles": [
+    {
+      "id": "editorial-premium",
+      "archetype": "premium-publishing",
+      "inspired_by": ["Apple", "Stripe", "Anthropic", "Substack", "v0.dev"],
+      "mood": ["premium", "calm", "confident", "editorial", "warm"],
+      "keywords": ["minimal", "clean", "premium", "editorial", "serif", "warm", "neutral", "calm", "sophisticated", "publishing", "marketing site", "landing page", "brand site"],
+      "best_for": ["Marketing sites for premium SaaS or services", "Brand sites where editorial tone matters", "Login / signup pages that feel like a confident invitation"],
+      "not_for": ["Dense product UIs (use linear-product or vercel-dev)", "Long-form reading surfaces (use substack-warm)", "Playful consumer apps (use playful-pastel)"],
+      "modes": ["light"],
+      "one_line": "Warm-neutral palette, serif display + sans body. The 'looks like a designed product' tier."
+    },
+
+    {
+      "id": "linear-product",
+      "archetype": "modern-product",
+      "inspired_by": ["Linear", "Raycast", "Cursor"],
+      "mood": ["technical", "precise", "modern", "geometric", "dense"],
+      "keywords": ["product", "dashboard", "app", "dense", "technical", "geometric", "modern", "dark mode", "developer tool", "saas product", "monospace", "keyboard"],
+      "best_for": ["Product surfaces (dashboards, admin UIs, in-app screens)", "Developer / technical-creator tools", "Modern SaaS where the product is the design, not marketing"],
+      "not_for": ["Marketing landing pages for non-technical audiences (use editorial-premium or apple-marketing)", "Reader-first long-form (use substack-warm)", "Pure dev tools — use vercel-dev for those"],
+      "modes": ["dark", "light"],
+      "one_line": "Monochromatic with one purple-blue accent. Inter throughout. Geometric, dense, precise."
+    },
+
+    {
+      "id": "vercel-dev",
+      "archetype": "dev-tool",
+      "inspired_by": ["Vercel", "Geist Design System", "Cursor", "Resend"],
+      "mood": ["technical", "monochrome", "precise", "developer-native"],
+      "keywords": ["developer tool", "dev tool", "infra", "platform", "deploy", "geist", "monospace", "mono", "dev product", "API platform", "command line"],
+      "best_for": ["Developer infrastructure products", "API platforms, CLIs, SDKs marketing", "Anything where monospace + pure BW + Geist signals 'made for developers'"],
+      "not_for": ["Consumer audiences (cold palette will feel sterile)", "Anything where warmth or playfulness is needed"],
+      "modes": ["dark", "light"],
+      "one_line": "Pure black/white, Geist Sans + Geist Mono. Developer-native by default."
+    },
+
+    {
+      "id": "mercury-fintech",
+      "archetype": "modern-fintech",
+      "inspired_by": ["Mercury", "Brex", "Ramp"],
+      "mood": ["confident", "calm", "sophisticated", "premium-banking", "deliberate"],
+      "keywords": ["fintech", "banking", "finance", "payments", "money", "neobank", "premium financial", "B2B finance", "expense", "treasury"],
+      "best_for": ["Modern fintech products that want to look NOTHING like a 1990s bank", "Trust-without-fear-mongering financial UIs", "B2B finance dashboards and marketing"],
+      "not_for": ["Consumer fintech for younger demographics (use playful-pastel)", "Crypto products (use linear-product or vercel-dev)"],
+      "modes": ["light", "dark"],
+      "one_line": "Deep navy + cream + sage accent. Confident without security theater. Killed the fintech-blue stereotype."
+    },
+
+    {
+      "id": "notion-docs",
+      "archetype": "docs-knowledge",
+      "inspired_by": ["Notion", "GitBook", "Linear docs", "Mintlify"],
+      "mood": ["clean", "neutral", "document-first", "readable", "structured"],
+      "keywords": ["docs", "documentation", "wiki", "knowledge base", "handbook", "guide", "manual", "help center", "internal docs"],
+      "best_for": ["Documentation sites and knowledge bases", "Internal wikis and handbooks", "Reading-heavy content surfaces that still need navigation"],
+      "not_for": ["Marketing sites (use editorial-premium or apple-marketing)", "Long-form essays for general readers (use substack-warm)", "Product UIs (use linear-product)"],
+      "modes": ["light", "dark"],
+      "one_line": "Pure neutral, Inter throughout, sidebar + content layout. Readable, navigable, no flourish."
+    },
+
+    {
+      "id": "playful-pastel",
+      "archetype": "consumer-joyful",
+      "inspired_by": ["Notion marketing", "Loops", "Read.cv", "Linear Loops", "Substack illustrations"],
+      "mood": ["warm", "joyful", "soft", "friendly", "hand-crafted", "approachable"],
+      "keywords": ["playful", "friendly", "consumer", "warm", "soft", "pastel", "joyful", "creator", "creative", "lifestyle", "fun", "approachable"],
+      "best_for": ["Consumer apps for non-technical audiences", "Creator tools and lifestyle brands", "Onboarding flows where warmth matters", "Children's / education-adjacent (not literal kids' apps)"],
+      "not_for": ["Fintech (use mercury-fintech)", "Developer tools (use vercel-dev or linear-product)", "Enterprise B2B (use editorial-premium or mercury-fintech)"],
+      "modes": ["light"],
+      "one_line": "Soft pastels (peach, sky, sage) on cream. Hand-illustrated feel without literal illustrations. Warmth as a posture."
+    },
+
+    {
+      "id": "apple-marketing",
+      "archetype": "polished-product-marketing",
+      "inspired_by": ["apple.com", "Things3 marketing", "Tonal", "Things by Cultured Code"],
+      "mood": ["polished", "confident", "hero-driven", "hardware-precise", "premium"],
+      "keywords": ["product marketing", "app marketing", "hardware", "polished", "hero-driven", "premium consumer", "showcase", "apple-style", "san francisco font"],
+      "best_for": ["Marketing pages for polished consumer products (apps, hardware)", "Single-product showcases with hero-driven scrolling", "Premium consumer brands where Apple is the obvious reference"],
+      "not_for": ["Reading surfaces (use substack-warm)", "Dense product UIs (use linear-product)", "Editorial brand sites with warmth (use editorial-premium)"],
+      "modes": ["light", "dark"],
+      "one_line": "SF Pro family, monochrome with subtle product accents. Hero-driven, full-bleed sections, one focal point per fold."
+    },
+
+    {
+      "id": "substack-warm",
+      "archetype": "long-form-reading",
+      "inspired_by": ["Substack", "Read.cv", "PostHog blog", "personal essay sites"],
+      "mood": ["warm", "editorial", "personal", "literary", "reader-first"],
+      "keywords": ["blog", "newsletter", "essays", "long-form", "reading", "writer", "publication", "personal site", "magazine", "editorial reading"],
+      "best_for": ["Newsletters and writer-led publications", "Personal sites and portfolios for writers", "Long-form essay surfaces", "Anywhere body-in-serif feels right (reading-heavy)"],
+      "not_for": ["Marketing sites (use editorial-premium — different intent)", "Any product UI (totally wrong for app surfaces)", "Anywhere short copy dominates"],
+      "modes": ["light"],
+      "one_line": "Warm off-white, serif display + serif body (yes, body serif here — reading first). Single column, big margins, no chrome."
+    },
+
+    {
+      "id": "brutalist-editorial",
+      "archetype": "intentionally-raw",
+      "inspired_by": ["bzzt.dev", "Are.na", "Hex.tech (older)", "Cabinet design studio", "current-design.studio"],
+      "mood": ["raw", "intentional", "anti-design", "magazine", "asymmetric", "bold"],
+      "keywords": ["brutalist", "raw", "asymmetric", "editorial-magazine", "creative agency", "portfolio", "art", "experimental", "designer site", "studio site"],
+      "best_for": ["Creative agency and design studio sites", "Artistic portfolios for designers/photographers/writers", "Anywhere intentional rough edges signal taste"],
+      "not_for": ["B2B products of any kind", "Anything users need to navigate quickly (brutalism prioritizes statement over efficiency)", "Audiences who'd read it as 'broken'"],
+      "modes": ["light", "dark"],
+      "one_line": "Pure BW + one shocking primary. Mono OR oversized display sans. Asymmetric, sharp, deliberate."
+    },
+
+    {
+      "id": "arc-experimental",
+      "archetype": "novel-identity",
+      "inspired_by": ["Arc Browser", "Granola", "Tana", "Linear Loops (the brand site, not product)"],
+      "mood": ["novel", "identity-rich", "delightful", "purposeful-gradient", "distinct"],
+      "keywords": ["experimental", "novel", "browser", "AI product", "identity", "branded", "gradient-identity", "playful but precise", "memorable"],
+      "best_for": ["Products that need a STRONG visual identity to stand out", "AI-native products where the gradient is intentional brand, not template clutter", "Hero/marketing surfaces for novel products"],
+      "not_for": ["Anything where the brand needs to recede (editorial-premium fits better)", "Documentation or reading (use notion-docs / substack-warm)", "Dense product UIs (use linear-product)"],
+      "modes": ["dark", "light"],
+      "one_line": "Signature gradient (intentional, not template) + sharp typography + bold hero moments. Identity-as-design."
+    }
+  ]
+}

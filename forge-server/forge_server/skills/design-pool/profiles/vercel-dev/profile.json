@@ -1,0 +1,388 @@
+{
+  "id": "vercel-dev",
+  "version": "1.0.0",
+  "updated_at": "2026-05-26",
+  "archetype": "dev-tool",
+  "one_line": "Pure black/white, Geist Sans + Geist Mono. Developer-native by default. Feels like Vercel, Cursor, Resend, the Geist design system.",
+  "inspired_by": [
+    "Vercel",
+    "Cursor",
+    "Resend",
+    "Geist Design System",
+    "v0.dev product (not marketing)"
+  ],
+  "palette": {
+    "modes": [
+      "dark",
+      "light"
+    ],
+    "dark": {
+      "background": {
+        "value": "#000000",
+        "role": "Pure black. Yes, pure \u2014 this profile is the exception that allows it."
+      },
+      "surface": {
+        "value": "#0A0A0A",
+        "role": "Elevated surface, one notch from pure black."
+      },
+      "surface_subtle": {
+        "value": "#111111",
+        "role": "Inset surface (input fields, code blocks)."
+      },
+      "surface_active": {
+        "value": "#1A1A1A",
+        "role": "Hover state on interactive surfaces."
+      },
+      "text_primary": {
+        "value": "#FAFAFA",
+        "role": "Near-pure white for text. Slightly off to reduce eye strain."
+      },
+      "text_secondary": {
+        "value": "#A1A1A1",
+        "role": "Supporting text, metadata."
+      },
+      "text_muted": {
+        "value": "#666666",
+        "role": "De-emphasized, disabled."
+      },
+      "border": {
+        "value": "#1F1F1F",
+        "role": "Default borders. Subtle but visible against pure black."
+      },
+      "border_strong": {
+        "value": "#333333",
+        "role": "Hover-state borders, focused inputs."
+      },
+      "accent": {
+        "value": "#FFFFFF",
+        "role": "Primary action is WHITE on black. Inversion is the brand signature."
+      },
+      "accent_contrast": {
+        "value": "#000000",
+        "role": "Text color on the accent button \u2014 pure black."
+      },
+      "success": {
+        "value": "#00DC82",
+        "role": "Vercel green."
+      },
+      "warning": {
+        "value": "#FFAA00",
+        "role": "Sharp amber."
+      },
+      "danger": {
+        "value": "#FF4D4D",
+        "role": "Vivid red."
+      }
+    },
+    "light": {
+      "background": {
+        "value": "#FFFFFF"
+      },
+      "surface": {
+        "value": "#FAFAFA"
+      },
+      "surface_subtle": {
+        "value": "#F4F4F5"
+      },
+      "surface_active": {
+        "value": "#E5E5E5"
+      },
+      "text_primary": {
+        "value": "#000000"
+      },
+      "text_secondary": {
+        "value": "#666666"
+      },
+      "text_muted": {
+        "value": "#A1A1A1"
+      },
+      "border": {
+        "value": "#EAEAEA"
+      },
+      "border_strong": {
+        "value": "#D4D4D8"
+      },
+      "accent": {
+        "value": "#000000",
+        "role": "Inverted \u2014 black on white in light mode."
+      },
+      "accent_contrast": {
+        "value": "#FFFFFF"
+      }
+    },
+    "rules": [
+      "This is the ONE profile where pure #000 and #FFF are correct \u2014 they're the brand signature",
+      "Primary button INVERTS: white-on-black in dark mode, black-on-white in light mode",
+      "Use mono for tabular numbers, code snippets, hashes, IDs, deploy URLs, anything technical-feeling",
+      "Single accent across modes. Semantic colors (green/amber/red) used as 1-2px indicators, never as backgrounds"
+    ]
+  },
+  "typography": {
+    "fonts": {
+      "display": {
+        "family": "Geist, Inter, -apple-system, system-ui, sans-serif",
+        "google_font": "Geist",
+        "weights": [
+          400,
+          500,
+          600,
+          700,
+          900
+        ],
+        "use_for": [
+          "h1",
+          "h2",
+          "h3",
+          "h4"
+        ],
+        "letter_spacing": "-0.04em",
+        "rule": "Geist headlines use TIGHT tracking \u2014 much tighter than Inter would. -0.04em or even -0.05em on large sizes."
+      },
+      "body": {
+        "family": "Geist, Inter, -apple-system, system-ui, sans-serif",
+        "google_font": "Geist",
+        "weights": [
+          400,
+          500,
+          600
+        ],
+        "use_for": [
+          "body text",
+          "labels",
+          "buttons"
+        ],
+        "letter_spacing": "-0.01em"
+      },
+      "mono": {
+        "family": "Geist Mono, Berkeley Mono, JetBrains Mono, ui-monospace, monospace",
+        "google_font": "Geist Mono",
+        "weights": [
+          400,
+          500,
+          600
+        ],
+        "use_for": [
+          "code",
+          "URLs",
+          "IDs",
+          "tabular numbers",
+          "keyboard hints",
+          "timestamps",
+          "any technical detail"
+        ],
+        "rule": "Use mono AGGRESSIVELY. This profile is recognizable by how much monospace appears in unexpected places (button hints, footer detail, navigation breadcrumbs with arrows)."
+      }
+    },
+    "scale": {
+      "base_px": 14,
+      "ratio": 1.2,
+      "sizes": {
+        "xs": 11,
+        "sm": 12,
+        "base": 14,
+        "md": 15,
+        "lg": 17,
+        "xl": 20,
+        "2xl": 24,
+        "3xl": 30,
+        "4xl": 36,
+        "5xl": 48,
+        "6xl": 64
+      }
+    },
+    "rules": [
+      "Geist over Inter when available \u2014 the proportions are slightly different and feel more 'Vercel'",
+      "Headlines: weight 600-700, tight tracking, often ALL CAPS variants for tiny labels",
+      "Tabular numbers everywhere: font-variant-numeric: tabular-nums",
+      "Line-height: 1.5 prose, 1.3 UI, 1.05 large display"
+    ]
+  },
+  "spacing": {
+    "base_px": 4,
+    "scale": [
+      0,
+      2,
+      4,
+      6,
+      8,
+      12,
+      16,
+      20,
+      24,
+      32,
+      48,
+      64,
+      96
+    ],
+    "rules": [
+      "Dense by default, but marketing pages allow 64-96px section gutters",
+      "Buttons: 8px 14px padding (small) or 10px 16px (default)"
+    ]
+  },
+  "radius": {
+    "scale": {
+      "none": 0,
+      "sm": 4,
+      "md": 6,
+      "lg": 8,
+      "xl": 12,
+      "full": 9999
+    },
+    "rules": [
+      "Default radius: md (6px). Vercel uses small radii \u2014 never pills",
+      "Cards: lg (8px). Modals: xl (12px)",
+      "Code blocks: sm (4px). Inline code chips: sm (4px)"
+    ]
+  },
+  "elevation": {
+    "rules": [
+      "Almost no shadows. Borders carry the weight.",
+      "Modals/popovers only: 0 0 0 1px border, 0 12px 32px rgba(0,0,0,0.5) in dark, rgba(0,0,0,0.08) in light",
+      "Never glow effects except on focus rings"
+    ]
+  },
+  "components": {
+    "button_primary": {
+      "background": "accent",
+      "color": "accent_contrast",
+      "border": "none",
+      "radius": "md",
+      "padding": "8px 14px",
+      "font": "body weight 500",
+      "hover": "opacity 0.9",
+      "rule": "The inversion IS the design. Don't add gradients, don't add shadows."
+    },
+    "button_secondary": {
+      "background": "surface",
+      "color": "text_primary",
+      "border": "1px solid border_strong",
+      "radius": "md",
+      "padding": "8px 14px",
+      "hover": "background surface_active"
+    },
+    "input_text": {
+      "background": "surface_subtle",
+      "color": "text_primary",
+      "border": "1px solid border",
+      "border_focus": "1px solid text_primary",
+      "border_focus_glow": "none \u2014 Vercel doesn't glow on focus",
+      "radius": "md",
+      "padding": "8px 12px",
+      "rule": "Focus is border becoming pure white/black. No accent glow."
+    },
+    "code_chip": {
+      "background": "surface_subtle",
+      "color": "text_primary",
+      "border": "1px solid border",
+      "radius": "sm",
+      "padding": "1px 6px",
+      "font": "mono weight 500",
+      "font_size": "xs",
+      "rule": "Use these EVERYWHERE for technical refs. Vercel's marketing has like 50 of these per page."
+    },
+    "keyboard_hint": {
+      "background": "surface",
+      "color": "text_secondary",
+      "border": "1px solid border",
+      "radius": "sm",
+      "padding": "2px 6px",
+      "font": "mono weight 500",
+      "font_size": "xs"
+    }
+  },
+  "layout_patterns": {
+    "marketing_hero": {
+      "pattern": "centered-confident-with-product-shot",
+      "structure": "Centered hero, max-width 800px. Headline in Geist 600-weight, 4xl-5xl, tight tracking. One-line subhead in body. Two CTAs (primary inverted + ghost). Below: a real product shot (screenshot or animated UI), full-width but contained.",
+      "do": [
+        "Mono accents in copy: 'Deploy in 30 seconds \u2014 npm install vercel'",
+        "Code snippets as the visual proof, not illustrations",
+        "Tight letter-spacing on large headlines"
+      ],
+      "dont": [
+        "Stock illustration",
+        "Multiple accent colors",
+        "Loose tracking on large type \u2014 looks unfinished"
+      ]
+    },
+    "product_dashboard": {
+      "pattern": "sidebar-content-with-mono-detail",
+      "structure": "Left sidebar (240px) with project list. Top breadcrumb in mono. Content area is cards with 1px borders. Tables use tabular-nums; every numeric column right-aligned.",
+      "do": [
+        "Deploy IDs and commits in mono (text-mono text-xs)",
+        "Status badges as tiny pills with 1px border, not solid fills"
+      ],
+      "dont": [
+        "Colorful stat cards",
+        "Stock 'illustration of person at laptop' images"
+      ]
+    },
+    "docs": {
+      "pattern": "left-nav-content-toc",
+      "structure": "Three-column: left nav (240px), content (max 720px), right TOC (200px). Code blocks dominate the content area. Headlines in Geist, tight tracking.",
+      "do": [
+        "Code blocks with the surface_subtle bg and 1px border",
+        "Inline code as code_chip components"
+      ]
+    }
+  },
+  "animations": {
+    "library": "gsap (rare) or CSS only",
+    "philosophy": "Even more restrained than linear-product. Dev tools shouldn't pretend to be marketing pages.",
+    "patterns": {
+      "hover": "150ms color tween. Borders shift to text_primary on focused inputs \u2014 no glow.",
+      "deploy_status": "Subtle pulse animation on 'deploying' status (2s loop, opacity 0.6\u21921.0).",
+      "code_copy": "Brief flash of accent color on the 'copied' confirmation, 800ms total fade-out."
+    },
+    "anti_patterns": [
+      "glow effects beyond focus",
+      "smooth scroll-snapping",
+      "any 'wow' moment in the product UI"
+    ]
+  },
+  "tailwind_config_snippet": {
+    "theme": {
+      "extend": {
+        "colors": {
+          "bg": "#000000",
+          "surface": "#0A0A0A",
+          "surface-subtle": "#111111",
+          "surface-active": "#1A1A1A",
+          "text": "#FAFAFA",
+          "text-secondary": "#A1A1A1",
+          "text-muted": "#666666",
+          "border": "#1F1F1F",
+          "border-strong": "#333333",
+          "success": "#00DC82",
+          "warning": "#FFAA00",
+          "danger": "#FF4D4D"
+        },
+        "fontFamily": {
+          "display": [
+            "Geist",
+            "Inter",
+            "system-ui",
+            "sans-serif"
+          ],
+          "body": [
+            "Geist",
+            "Inter",
+            "system-ui",
+            "sans-serif"
+          ],
+          "mono": [
+            "Geist Mono",
+            "JetBrains Mono",
+            "ui-monospace",
+            "monospace"
+          ]
+        },
+        "letterSpacing": {
+          "display-tight": "-0.04em",
+          "tight": "-0.025em",
+          "normal": "-0.01em"
+        }
+      }
+    }
+  }
+}

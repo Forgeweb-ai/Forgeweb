@@ -1,0 +1,357 @@
+{
+  "id": "notion-docs",
+  "version": "1.0.0",
+  "updated_at": "2026-05-26",
+  "archetype": "docs-knowledge",
+  "one_line": "Pure neutral, Inter throughout, sidebar + content + TOC layout. Readable, navigable, no flourish. Feels like Notion, GitBook, Linear docs, Mintlify.",
+  "inspired_by": [
+    "Notion",
+    "GitBook",
+    "Linear docs",
+    "Mintlify",
+    "Stripe docs"
+  ],
+  "palette": {
+    "modes": [
+      "light",
+      "dark"
+    ],
+    "light": {
+      "background": {
+        "value": "#FFFFFF"
+      },
+      "surface": {
+        "value": "#FAFAF9"
+      },
+      "surface_subtle": {
+        "value": "#F5F5F4",
+        "role": "Code blocks, blockquotes, inline highlights."
+      },
+      "surface_active": {
+        "value": "#E7E5E4"
+      },
+      "text_primary": {
+        "value": "#1C1917",
+        "role": "Stone-900 \u2014 warm dark."
+      },
+      "text_secondary": {
+        "value": "#57534E"
+      },
+      "text_muted": {
+        "value": "#A8A29E"
+      },
+      "text_inverse": {
+        "value": "#FAFAF9"
+      },
+      "border": {
+        "value": "#E7E5E4"
+      },
+      "border_strong": {
+        "value": "#D6D3D1"
+      },
+      "accent": {
+        "value": "#1C1917",
+        "role": "Accent IS the text color \u2014 inverted button uses bg=#1C1917, color=white. No colored accent."
+      },
+      "link": {
+        "value": "#2563EB",
+        "role": "Standard link blue. Documentation has decades of convention for links \u2014 don't reinvent."
+      },
+      "callout_info": {
+        "value": "#EFF6FF"
+      },
+      "callout_warn": {
+        "value": "#FEFCE8"
+      },
+      "callout_danger": {
+        "value": "#FEF2F2"
+      },
+      "callout_success": {
+        "value": "#F0FDF4"
+      }
+    },
+    "dark": {
+      "background": {
+        "value": "#1C1917"
+      },
+      "surface": {
+        "value": "#292524"
+      },
+      "surface_subtle": {
+        "value": "#1F1B18"
+      },
+      "text_primary": {
+        "value": "#FAFAF9"
+      },
+      "text_secondary": {
+        "value": "#A8A29E"
+      },
+      "text_muted": {
+        "value": "#78716C"
+      },
+      "border": {
+        "value": "#44403C"
+      },
+      "link": {
+        "value": "#60A5FA"
+      }
+    },
+    "rules": [
+      "Pure neutral palette. The point is that the CONTENT is colorful (callout blocks, code highlights), not the chrome",
+      "Links are standard blue. Docs users have 30 years of muscle memory for this \u2014 don't be clever",
+      "Callout boxes use pastel backgrounds (info=blue, warn=yellow, danger=red, success=green) but at very low saturation",
+      "Buttons are inverted (black on white in light, white on black in dark). No colored CTAs in docs surfaces"
+    ]
+  },
+  "typography": {
+    "fonts": {
+      "display": {
+        "family": "Inter, -apple-system, system-ui, sans-serif",
+        "google_font": "Inter",
+        "weights": [
+          500,
+          600,
+          700
+        ],
+        "use_for": [
+          "h1",
+          "h2",
+          "h3",
+          "h4"
+        ],
+        "letter_spacing": "-0.025em"
+      },
+      "body": {
+        "family": "Inter, -apple-system, system-ui, sans-serif",
+        "google_font": "Inter",
+        "weights": [
+          400,
+          500,
+          600
+        ],
+        "use_for": [
+          "body prose",
+          "labels"
+        ],
+        "letter_spacing": "-0.01em",
+        "line_height": "1.7 for prose \u2014 generous, reading-optimized"
+      },
+      "mono": {
+        "family": "JetBrains Mono, Berkeley Mono, ui-monospace, monospace",
+        "google_font": "JetBrains Mono",
+        "weights": [
+          400,
+          500
+        ],
+        "use_for": [
+          "code blocks",
+          "inline code",
+          "file paths",
+          "command examples"
+        ],
+        "rule": "Heavy mono usage \u2014 every technical term that could be code IS code-styled"
+      }
+    },
+    "scale": {
+      "base_px": 16,
+      "ratio": 1.2,
+      "$rule": "Bump base back up to 16px \u2014 docs are read, not scanned",
+      "sizes": {
+        "xs": 12,
+        "sm": 13,
+        "base": 16,
+        "md": 17,
+        "lg": 19,
+        "xl": 24,
+        "2xl": 30,
+        "3xl": 36,
+        "4xl": 48,
+        "5xl": 60
+      }
+    },
+    "rules": [
+      "Inter throughout, no serif. Docs use SANS \u2014 readers expect it, serif feels marketing-y in this context",
+      "Generous line-height (1.7 prose) \u2014 the whole point is reading comfort",
+      "Headlines: weight 600, NOT 700+ \u2014 restrained authority",
+      "Inline code: surface_subtle bg + 1px border, small radius, mono, slightly smaller than body",
+      "Code blocks: surface_subtle bg, full padding, syntax highlighting (use Shiki or Prism)"
+    ]
+  },
+  "spacing": {
+    "base_px": 4,
+    "scale": [
+      0,
+      4,
+      8,
+      12,
+      16,
+      20,
+      24,
+      32,
+      40,
+      48,
+      64,
+      80,
+      96
+    ],
+    "rules": [
+      "Content max-width: 720-800px (reading-optimized, not full bleed)",
+      "Between paragraphs: 16px",
+      "Between sections (h2): 48px above, 24px below",
+      "Sidebar items: 4-8px gap (dense nav)"
+    ]
+  },
+  "radius": {
+    "scale": {
+      "none": 0,
+      "sm": 4,
+      "md": 6,
+      "lg": 8,
+      "xl": 12,
+      "full": 9999
+    },
+    "rules": [
+      "Small radii \u2014 docs aesthetic is precise, not playful",
+      "Code blocks: sm-md (4-6px)",
+      "Inline code: sm (4px)",
+      "Callout boxes: md (6px)"
+    ]
+  },
+  "elevation": {
+    "rules": [
+      "Almost no shadows. Borders carry depth.",
+      "Code blocks: 1px border, no shadow",
+      "Modals (rare in docs): 0 0 0 1px border + 0 8px 24px subtle"
+    ]
+  },
+  "components": {
+    "button_primary": {
+      "background": "text_primary",
+      "color": "background",
+      "border": "none",
+      "radius": "md",
+      "padding": "8px 14px",
+      "hover": "opacity 0.85",
+      "rule": "Black-on-white (or white-on-black in dark). Inverted. No accent color."
+    },
+    "code_block": {
+      "background": "surface_subtle",
+      "color": "text_primary",
+      "border": "1px solid border",
+      "radius": "md",
+      "padding": "16px",
+      "font": "mono",
+      "rule": "Include language label at top-right of block in text_muted. Optional copy button."
+    },
+    "inline_code": {
+      "background": "surface_subtle",
+      "color": "text_primary",
+      "border": "1px solid border",
+      "radius": "sm",
+      "padding": "1px 5px",
+      "font": "mono",
+      "size": "0.9em relative to surrounding text"
+    },
+    "callout_info": {
+      "background": "callout_info",
+      "border": "1px solid (info border)",
+      "radius": "md",
+      "padding": "16px 20px",
+      "icon": "info icon at top-left in info color"
+    },
+    "table_of_contents": {
+      "rule": "Right sidebar (200px wide), sticky, hierarchical (h2 indented from h1, h3 indented from h2). Active section highlighted via 2px left border in accent."
+    },
+    "sidebar_nav": {
+      "rule": "Left sidebar (260-280px). Sections in weight 600, items in weight 400. Active item: surface_active bg + weight 500."
+    }
+  },
+  "layout_patterns": {
+    "docs_page": {
+      "pattern": "left-nav-content-toc",
+      "structure": "Three columns: left sidebar (260px nav), content (max 720px center), right TOC (200px). Top: searchbar with \u2318K hint, brand mark left.",
+      "do": [
+        "Breadcrumb above page title",
+        "Edit-on-GitHub link in footer",
+        "Prev/next page links at end of content"
+      ],
+      "dont": [
+        "Hero illustrations on docs pages",
+        "Marketing CTAs in body content"
+      ]
+    },
+    "docs_landing": {
+      "pattern": "category-grid",
+      "structure": "Brand mark + searchbar at top. Grid of category cards (3-up or 4-up). Each card: icon, category name, 1-line description.",
+      "do": [
+        "Show what's new at the top (changelog teaser)",
+        "Quick links to most-read pages"
+      ]
+    },
+    "api_reference": {
+      "pattern": "left-nav-content-right-codeblock",
+      "structure": "Left nav, middle: prose description of endpoint, RIGHT (sticky): code examples in a panel. Two-pane layout for API refs (Stripe-style).",
+      "do": [
+        "Language tabs at top of code panel (curl / JS / Python / Go)",
+        "Response example below request example"
+      ]
+    }
+  },
+  "animations": {
+    "library": "none needed \u2014 CSS is enough",
+    "philosophy": "The page is for READING. Motion distracts. Use almost none.",
+    "patterns": {
+      "sidebar_expand": "Tree expand/collapse, 150ms ease-out. That's it.",
+      "smooth_scroll_to_anchor": "Browser-native smooth-scroll on TOC clicks.",
+      "search_open": "Modal fade-in 150ms when \u2318K is pressed."
+    },
+    "anti_patterns": [
+      "page-load animations on every navigation (reading flow killer)",
+      "scroll-driven anything",
+      "tooltip animations longer than 100ms"
+    ]
+  },
+  "tailwind_config_snippet": {
+    "theme": {
+      "extend": {
+        "colors": {
+          "bg": "#FFFFFF",
+          "surface": "#FAFAF9",
+          "surface-subtle": "#F5F5F4",
+          "surface-active": "#E7E5E4",
+          "text": "#1C1917",
+          "text-secondary": "#57534E",
+          "text-muted": "#A8A29E",
+          "border": "#E7E5E4",
+          "border-strong": "#D6D3D1",
+          "link": "#2563EB",
+          "callout-info": "#EFF6FF",
+          "callout-warn": "#FEFCE8",
+          "callout-danger": "#FEF2F2",
+          "callout-success": "#F0FDF4"
+        },
+        "fontFamily": {
+          "display": [
+            "Inter",
+            "system-ui",
+            "sans-serif"
+          ],
+          "body": [
+            "Inter",
+            "system-ui",
+            "sans-serif"
+          ],
+          "mono": [
+            "JetBrains Mono",
+            "Berkeley Mono",
+            "ui-monospace",
+            "monospace"
+          ]
+        },
+        "maxWidth": {
+          "prose": "720px"
+        }
+      }
+    }
+  }
+}

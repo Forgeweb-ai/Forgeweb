@@ -1,0 +1,296 @@
+{
+  "id": "substack-warm",
+  "version": "1.0.0",
+  "updated_at": "2026-05-26",
+  "archetype": "long-form-reading",
+  "one_line": "Warm off-white + serif display + serif body (reader-first). Single column, big margins, no chrome. Feels like Substack, Read.cv, personal essay sites.",
+  "inspired_by": [
+    "Substack",
+    "Read.cv",
+    "PostHog blog",
+    "personal essay sites"
+  ],
+  "palette": {
+    "modes": [
+      "light"
+    ],
+    "light": {
+      "background": {
+        "value": "#FBF8F1",
+        "role": "Warm parchment. Slightly warmer than editorial-premium."
+      },
+      "surface": {
+        "value": "#FFFFFF",
+        "role": "Card surfaces, rare in this profile."
+      },
+      "surface_subtle": {
+        "value": "#F0EAD8",
+        "role": "Pull-quote backgrounds, blockquote insets."
+      },
+      "text_primary": {
+        "value": "#2C2418",
+        "role": "Warm dark brown \u2014 almost-black with brown undertone. The signature reading color."
+      },
+      "text_secondary": {
+        "value": "#5C5142",
+        "role": "Author bylines, dates, metadata."
+      },
+      "text_muted": {
+        "value": "#8C8170",
+        "role": "Tertiary, footnotes."
+      },
+      "border": {
+        "value": "#D8CFB8",
+        "role": "Subtle warm divider."
+      },
+      "accent": {
+        "value": "#A85A2A",
+        "role": "Burnt orange \u2014 used for links, ONLY links. The single accent."
+      },
+      "highlight": {
+        "value": "#FFF3C4",
+        "role": "Editor highlights (rare \u2014 for callout pull-quotes only)."
+      }
+    },
+    "rules": [
+      "Light mode only. Dark-mode reading apps are valid, but this profile's identity is the warm parchment",
+      "Background is WARM cream (#FBF8F1), not pure white. The whole profile is about reader comfort",
+      "Single accent \u2014 burnt orange for links. Nothing else gets color",
+      "Text is brown-tinged (#2C2418), not pure black. Pure black reads cold and clinical for long-form"
+    ]
+  },
+  "typography": {
+    "fonts": {
+      "display": {
+        "family": "Lyon Display, Charter, Tiempos Headline, Georgia, serif",
+        "google_font": "Lora",
+        "weights": [
+          400,
+          500,
+          600
+        ],
+        "use_for": [
+          "h1 article titles",
+          "h2 section heads"
+        ],
+        "letter_spacing": "-0.015em",
+        "rule": "Display serif. Lora is the closest free Google font. Substack itself uses a serif similar to Lyon."
+      },
+      "body": {
+        "family": "Charter, Iowan Old Style, Source Serif Pro, Georgia, serif",
+        "google_font": "Lora",
+        "weights": [
+          400,
+          500
+        ],
+        "use_for": [
+          "BODY TEXT \u2014 yes, serif body. This is the defining feature of this profile."
+        ],
+        "letter_spacing": "0",
+        "line_height": "1.7 \u2014 generous, reading-paced",
+        "rule": "THIS IS THE KEY DIFFERENTIATION. Body in serif. Reading apps and long-form publications use serif body because it's easier to read at length. Inter body would put this in editorial-premium territory."
+      },
+      "sans_ui": {
+        "family": "Inter, -apple-system, system-ui, sans-serif",
+        "google_font": "Inter",
+        "weights": [
+          400,
+          500
+        ],
+        "use_for": [
+          "UI chrome only \u2014 author byline metadata, date stamps, navigation, buttons. Anything that isn't prose."
+        ]
+      }
+    },
+    "scale": {
+      "base_px": 19,
+      "ratio": 1.25,
+      "$rule": "Base 19px \u2014 substantially larger than other profiles. Reading at 19px in serif feels generous and editorial. Substack itself uses ~20px body.",
+      "sizes": {
+        "xs": 12,
+        "sm": 14,
+        "base": 19,
+        "md": 21,
+        "lg": 24,
+        "xl": 30,
+        "2xl": 38,
+        "3xl": 48,
+        "4xl": 64
+      }
+    },
+    "rules": [
+      "Body in SERIF. Inter is for UI chrome (date, nav, byline) only",
+      "Base 19px \u2014 bigger than you think it should be. Reading happens",
+      "Line-height 1.7-1.8 for prose. Generous breathing room is the design",
+      "Pull quotes: italic serif, slightly larger (xl-2xl), indented with a left border"
+    ]
+  },
+  "spacing": {
+    "base_px": 4,
+    "scale": [
+      0,
+      4,
+      8,
+      12,
+      16,
+      24,
+      32,
+      48,
+      64,
+      96,
+      128,
+      160
+    ],
+    "rules": [
+      "Content max-width: 640-680px. NARROWER than docs (which use 720-800px). Reading comfort is tighter.",
+      "Between paragraphs: 1em (~19px at base)",
+      "Section breaks: 48-64px"
+    ]
+  },
+  "radius": {
+    "scale": {
+      "none": 0,
+      "sm": 2,
+      "md": 4,
+      "lg": 6,
+      "full": 9999
+    },
+    "rules": [
+      "TINY radius. Almost everything is 0-4px. This profile is editorial/print-feel.",
+      "Pull-quote insets: 0px (sharp edges)",
+      "Buttons (rare): sm-md (2-4px)"
+    ]
+  },
+  "elevation": {
+    "rules": [
+      "Zero shadows. Editorial design uses borders + spacing, never shadows",
+      "No card surfaces in the reading area. The page background IS the surface",
+      "Optional 1px warm divider between sections"
+    ]
+  },
+  "components": {
+    "byline": {
+      "rule": "Author name + date appear above article title in sans (Inter), small (sm), text_secondary. Photo optional, small (32-40px) circular avatar."
+    },
+    "pull_quote": {
+      "background": "transparent",
+      "border_left": "3px solid border",
+      "color": "text_primary",
+      "padding": "0 0 0 24px",
+      "font": "display serif italic",
+      "size": "lg-xl",
+      "rule": "Indented from left with a thin border. NEVER centered with quotation marks at huge size."
+    },
+    "link": {
+      "color": "accent",
+      "underline": "always",
+      "decoration-thickness": "1px",
+      "underline-offset": "3px",
+      "rule": "Links underlined. Always. The whole web of reading depends on visible link affordance."
+    },
+    "button_primary": {
+      "background": "text_primary",
+      "color": "background",
+      "border": "none",
+      "radius": "md",
+      "padding": "8px 16px",
+      "font": "sans_ui weight 500",
+      "rule": "Rare in this profile. When needed: sans (UI font), small, restrained."
+    },
+    "footnote": {
+      "color": "text_muted",
+      "font_size": "sm",
+      "rule": "Footnotes are tiny serif at the bottom of the article. Hover or click to reveal."
+    }
+  },
+  "layout_patterns": {
+    "article": {
+      "pattern": "single-column-narrow",
+      "structure": "Single column, max-width 640-680px, centered. Title at top in serif display weight 500-600 (3xl-4xl). Byline below in sans. Then body content in serif, line-height 1.7.",
+      "do": [
+        "Author photo + name + date in sans above title",
+        "Dropcap on first paragraph (optional, but it's THE move)",
+        "Pull quotes inset with left border"
+      ],
+      "dont": [
+        "Sidebars, related-articles widgets in the middle of the article",
+        "CTAs ('Subscribe!') mid-article",
+        "Multi-column layouts"
+      ]
+    },
+    "publication_home": {
+      "pattern": "stacked-article-cards",
+      "structure": "Title of publication at top (display serif, large). Below: stacked article cards, each with title (display serif xl) + 2-line excerpt + author + date.",
+      "do": [
+        "Cards separated by 48px gaps, not borders",
+        "Article excerpts in body serif"
+      ]
+    },
+    "writer_profile": {
+      "pattern": "centered-bio-then-articles",
+      "structure": "Top: large circular avatar (96-120px), name in display serif, ~2-line bio in body serif, social links in sans. Below: list of articles."
+    }
+  },
+  "animations": {
+    "library": "none",
+    "philosophy": "Reader-first. Motion intrudes on reading.",
+    "patterns": {
+      "article_load": "300ms fade-in on first page load, that's the entire animation budget for the article view.",
+      "image_load": "Blur-up effect on inline article images (small placeholder loads first, full image fades in)."
+    },
+    "anti_patterns": [
+      "EVERY OTHER ANIMATION PATTERN. Reading interfaces stay still."
+    ]
+  },
+  "tailwind_config_snippet": {
+    "theme": {
+      "extend": {
+        "colors": {
+          "bg": "#FBF8F1",
+          "surface": "#FFFFFF",
+          "surface-subtle": "#F0EAD8",
+          "text": "#2C2418",
+          "text-secondary": "#5C5142",
+          "text-muted": "#8C8170",
+          "border": "#D8CFB8",
+          "accent": "#A85A2A",
+          "highlight": "#FFF3C4"
+        },
+        "fontFamily": {
+          "display": [
+            "Lora",
+            "Lyon Display",
+            "Charter",
+            "Tiempos Headline",
+            "Georgia",
+            "serif"
+          ],
+          "body": [
+            "Lora",
+            "Charter",
+            "Iowan Old Style",
+            "Source Serif Pro",
+            "Georgia",
+            "serif"
+          ],
+          "sans": [
+            "Inter",
+            "system-ui",
+            "sans-serif"
+          ]
+        },
+        "maxWidth": {
+          "prose": "640px"
+        },
+        "fontSize": {
+          "base": [
+            "19px",
+            {
+              "lineHeight": "1.7"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

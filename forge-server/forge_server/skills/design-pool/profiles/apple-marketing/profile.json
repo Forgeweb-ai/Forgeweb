@@ -1,0 +1,339 @@
+{
+  "id": "apple-marketing",
+  "version": "1.0.0",
+  "updated_at": "2026-05-26",
+  "archetype": "polished-product-marketing",
+  "one_line": "SF Pro family, monochrome with subtle product accents. Hero-driven full-bleed sections. One focal point per fold. Feels like apple.com, Things3, Tonal.",
+  "inspired_by": [
+    "apple.com",
+    "Things3 marketing",
+    "Tonal",
+    "Cultured Code marketing"
+  ],
+  "palette": {
+    "modes": [
+      "light",
+      "dark"
+    ],
+    "light": {
+      "background": {
+        "value": "#FFFFFF",
+        "role": "Pure white \u2014 Apple uses pure white correctly. The negative space carries the design."
+      },
+      "surface": {
+        "value": "#FBFBFD",
+        "role": "Pearl/off-white for product cards and section bg."
+      },
+      "surface_subtle": {
+        "value": "#F5F5F7",
+        "role": "Inset surfaces, product backdrops."
+      },
+      "surface_dark": {
+        "value": "#000000",
+        "role": "Pure black sections for product-dark presentations. Apple's signature alternating light/dark sections."
+      },
+      "text_primary": {
+        "value": "#1D1D1F",
+        "role": "Apple's official body color. Near-black, slight cool tint."
+      },
+      "text_secondary": {
+        "value": "#6E6E73",
+        "role": "Supporting copy."
+      },
+      "text_muted": {
+        "value": "#86868B",
+        "role": "Captions, legal text."
+      },
+      "text_on_dark": {
+        "value": "#F5F5F7",
+        "role": "Used on surface_dark sections."
+      },
+      "border": {
+        "value": "#D2D2D7",
+        "role": "Subtle dividers."
+      },
+      "border_strong": {
+        "value": "#86868B"
+      },
+      "accent_blue": {
+        "value": "#0066CC",
+        "role": "Apple's link blue. Used for links + outline CTAs only."
+      },
+      "accent_red": {
+        "value": "#BF4800",
+        "role": "Sparingly \u2014 Apple Maps or 'subscribe' style. Muted."
+      }
+    },
+    "dark": {
+      "background": {
+        "value": "#000000",
+        "role": "Pure black, used for product-dark hero sections."
+      },
+      "surface": {
+        "value": "#1D1D1F"
+      },
+      "text_primary": {
+        "value": "#F5F5F7"
+      },
+      "text_secondary": {
+        "value": "#86868B"
+      },
+      "border": {
+        "value": "#424245"
+      }
+    },
+    "rules": [
+      "Pure black AND pure white are correct here \u2014 Apple's marketing alternates light + dark full-bleed sections, and the contrast is the design",
+      "Accents are SPARINGLY used. The 'color' in an Apple marketing page is the product imagery itself, not chrome",
+      "Single accent (blue link / red flourish) per page \u2014 Apple doesn't paint CTAs in brand colors except in very specific contexts",
+      "Sections alternate: white bg \u2192 product hero \u2192 dark bg \u2192 product detail \u2192 white bg. This rhythm IS the design"
+    ]
+  },
+  "typography": {
+    "fonts": {
+      "display": {
+        "family": "SF Pro Display, -apple-system, BlinkMacSystemFont, system-ui, sans-serif",
+        "google_font": "Inter",
+        "weights": [
+          400,
+          500,
+          600,
+          700
+        ],
+        "use_for": [
+          "h1 hero copy",
+          "h2 section heads"
+        ],
+        "letter_spacing": "-0.04em on large sizes (5xl+), -0.025em on medium (2xl-3xl)",
+        "rule": "SF Pro Display is the system font on Apple devices and matches apple.com. Fall back to Inter for cross-platform \u2014 it's the closest match."
+      },
+      "body": {
+        "family": "SF Pro Text, -apple-system, BlinkMacSystemFont, system-ui, sans-serif",
+        "google_font": "Inter",
+        "weights": [
+          400,
+          500,
+          600
+        ],
+        "use_for": [
+          "body text",
+          "buttons",
+          "captions"
+        ],
+        "letter_spacing": "-0.01em"
+      },
+      "mono": {
+        "family": "SF Mono, ui-monospace, monospace",
+        "google_font": "JetBrains Mono",
+        "weights": [
+          400,
+          500
+        ],
+        "use_for": [
+          "technical specs (rare in marketing)",
+          "pricing tables",
+          "feature comparison rows"
+        ]
+      }
+    },
+    "scale": {
+      "base_px": 17,
+      "ratio": 1.25,
+      "$rule": "Base 17px \u2014 Apple uses 17px body. Headlines go BIG: hero is often 80-120px on desktop.",
+      "sizes": {
+        "xs": 12,
+        "sm": 14,
+        "base": 17,
+        "md": 19,
+        "lg": 21,
+        "xl": 28,
+        "2xl": 40,
+        "3xl": 56,
+        "4xl": 80,
+        "5xl": 96,
+        "6xl": 128
+      }
+    },
+    "rules": [
+      "Hero headlines are HUGE \u2014 80-128px on desktop. Apple doesn't whisper headlines",
+      "Tight tracking on large sizes (-0.04em) \u2014 looser tracking ruins the polish",
+      "Body weight 400 \u2014 not the bolder 500 that other profiles use. Apple body is light",
+      "Pricing tables: monospace, tabular numbers, right-aligned"
+    ]
+  },
+  "spacing": {
+    "base_px": 4,
+    "scale": [
+      0,
+      4,
+      8,
+      12,
+      16,
+      24,
+      32,
+      48,
+      64,
+      96,
+      128,
+      160,
+      200,
+      280
+    ],
+    "rules": [
+      "Section gutters: 128-200px vertical. This profile has the largest vertical rhythm of any in the pool",
+      "Full-bleed sections: 100% width, 96-128px vertical padding inside",
+      "Content within sections: max-width 980-1200px, centered"
+    ]
+  },
+  "radius": {
+    "scale": {
+      "none": 0,
+      "sm": 4,
+      "md": 8,
+      "lg": 12,
+      "xl": 18,
+      "2xl": 24,
+      "full": 9999
+    },
+    "rules": [
+      "Apple uses larger radii than most profiles \u2014 buttons can be xl (18px) or even pill-shaped for primary 'Buy' CTAs",
+      "Product cards: lg-xl (12-18px)",
+      "Pill buttons are CORRECT here for primary marketing CTAs ('Buy', 'Pre-Order') \u2014 one of the few profiles where pills work"
+    ]
+  },
+  "elevation": {
+    "rules": [
+      "Almost no shadows. Apple uses pure surfaces and color separation, not depth tricks",
+      "Product imagery often has its OWN shadow built into the asset (rendered with realistic light)",
+      "If a shadow is needed: 0 4px 24px rgba(0,0,0,0.04) in light, 0 0 0 1px rgba(255,255,255,0.06) in dark"
+    ]
+  },
+  "components": {
+    "button_primary": {
+      "background": "accent_blue",
+      "color": "#FFFFFF",
+      "border": "none",
+      "radius": "xl (18px) OR full (pill) for buy CTAs",
+      "padding": "12px 22px",
+      "font": "body weight 400",
+      "hover": "background slightly darker",
+      "rule": "Blue pill buttons are the Apple primary. NOT colored gradients."
+    },
+    "button_secondary": {
+      "background": "transparent",
+      "color": "accent_blue",
+      "border": "none",
+      "radius": "0",
+      "font": "body weight 400",
+      "hover": "underline",
+      "rule": "Apple's secondary is often just blue text with an arrow ('Learn more \u2192'). No outlined button needed."
+    },
+    "feature_card": {
+      "background": "surface",
+      "border": "none",
+      "radius": "xl",
+      "padding": "48-64px",
+      "rule": "Apple's feature cards are large, often full-section. Inside: huge feature claim + product imagery."
+    }
+  },
+  "layout_patterns": {
+    "marketing_hero": {
+      "pattern": "centered-hero-full-bleed",
+      "structure": "Full-bleed white (or black) section, 600-800px tall on desktop. Centered: product name (small, 14px), enormous headline (5xl-6xl, weight 600), short subhead (lg, weight 400), 'Buy' button + 'Learn more \u2192' link. Below: large product imagery, centered.",
+      "do": [
+        "ONE focal point per section \u2014 never split",
+        "Huge product imagery, professionally lit",
+        "Tight tracking on big type"
+      ],
+      "dont": [
+        "Multiple CTAs in the hero",
+        "Stock illustrations of any kind",
+        "Feature lists in the hero"
+      ]
+    },
+    "feature_section": {
+      "pattern": "full-bleed-alternating",
+      "structure": "Alternating white and black full-bleed sections. Each section has ONE feature claim + ONE product detail (image, animation, or chart). Vertical gap between sections: 128-200px.",
+      "do": [
+        "Alternate light/dark \u2014 the rhythm is the design",
+        "Big type, restrained copy",
+        "Product wins, not chrome"
+      ]
+    },
+    "pricing": {
+      "pattern": "3-up-comparison-table",
+      "structure": "Three columns side-by-side, each with a tier name, big price (mono, tabular), feature checklist below. Center column slightly emphasised.",
+      "do": [
+        "Prices in mono with tabular-nums",
+        "Feature rows use \u2713 in accent_blue, not text"
+      ],
+      "dont": [
+        "Multiple gradients per column",
+        "Animated 'most popular' ribbons"
+      ]
+    }
+  },
+  "animations": {
+    "library": "gsap with ScrollTrigger (scroll-driven sections are signature)",
+    "philosophy": "Long, smooth, choreographed. Apple uses motion to direct attention.",
+    "patterns": {
+      "scroll_reveal": "Each section reveals as it enters viewport \u2014 GSAP ScrollTrigger, 600-900ms with cubic-bezier(0.16, 1, 0.3, 1).",
+      "parallax_product": "Hero product image moves slowly with scroll (translateY based on scroll position).",
+      "section_pin": "Some sections PIN during scroll while elements animate inside \u2014 classic Apple. Use sparingly, 1-2 per page max.",
+      "text_word_reveal": "Hero copy reveals word-by-word with 50ms stagger as it enters viewport."
+    },
+    "anti_patterns": [
+      "bouncy elastic eases (wrong vibe \u2014 Apple is smooth, not playful)",
+      "celebratory confetti",
+      "spinners on demand-load images (use blur-up instead)"
+    ]
+  },
+  "tailwind_config_snippet": {
+    "theme": {
+      "extend": {
+        "colors": {
+          "bg": "#FFFFFF",
+          "surface": "#FBFBFD",
+          "surface-subtle": "#F5F5F7",
+          "surface-dark": "#000000",
+          "text": "#1D1D1F",
+          "text-secondary": "#6E6E73",
+          "text-muted": "#86868B",
+          "text-on-dark": "#F5F5F7",
+          "border": "#D2D2D7",
+          "accent-blue": "#0066CC",
+          "accent-red": "#BF4800"
+        },
+        "fontFamily": {
+          "display": [
+            "SF Pro Display",
+            "Inter",
+            "-apple-system",
+            "BlinkMacSystemFont",
+            "system-ui",
+            "sans-serif"
+          ],
+          "body": [
+            "SF Pro Text",
+            "Inter",
+            "-apple-system",
+            "BlinkMacSystemFont",
+            "system-ui",
+            "sans-serif"
+          ],
+          "mono": [
+            "SF Mono",
+            "JetBrains Mono",
+            "ui-monospace",
+            "monospace"
+          ]
+        },
+        "letterSpacing": {
+          "hero": "-0.04em",
+          "display": "-0.025em",
+          "normal": "-0.01em"
+        }
+      }
+    }
+  }
+}

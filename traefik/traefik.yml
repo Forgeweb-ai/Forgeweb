@@ -1,0 +1,36 @@
+api:
+  dashboard: true
+  insecure: true   # disable in production, add auth middleware
+
+log:
+  level: INFO
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: forge-net
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+entryPoints:
+  web:
+    address: ":80"
+    # In production, redirect HTTP → HTTPS:
+    # http:
+    #   redirections:
+    #     entryPoint:
+    #       to: websecure
+    #       scheme: https
+  websecure:
+    address: ":443"
+
+# In production: add Let's Encrypt cert resolver here
+# certificatesResolvers:
+#   letsencrypt:
+#     acme:
+#       email: you@example.com
+#       storage: /certs/acme.json
+#       httpChallenge:
+#         entryPoint: web

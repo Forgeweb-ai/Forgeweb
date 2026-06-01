@@ -1,0 +1,330 @@
+{
+  "id": "playful-pastel",
+  "version": "1.0.0",
+  "updated_at": "2026-05-26",
+  "archetype": "consumer-joyful",
+  "one_line": "Soft pastels (peach, sky, sage) on cream. Hand-crafted feel without literal illustrations. Warmth as posture. Feels like Loops, Read.cv, Notion marketing, Substack.",
+  "inspired_by": [
+    "Loops",
+    "Read.cv",
+    "Notion marketing pages",
+    "Substack creator pages",
+    "Linear Loops"
+  ],
+  "palette": {
+    "modes": [
+      "light"
+    ],
+    "light": {
+      "background": {
+        "value": "#FCF8F3",
+        "role": "Warm off-white. Slightly more cream than editorial-premium."
+      },
+      "surface": {
+        "value": "#FFFFFF",
+        "role": "Cards, elevated surfaces."
+      },
+      "surface_subtle": {
+        "value": "#F4EDE2",
+        "role": "Inset surfaces."
+      },
+      "surface_peach": {
+        "value": "#FCE4D6",
+        "role": "Pastel peach panel \u2014 for hero halves, accent sections."
+      },
+      "surface_sky": {
+        "value": "#D6EAF8",
+        "role": "Pastel sky \u2014 alternative accent panel."
+      },
+      "surface_sage": {
+        "value": "#DCE8DA",
+        "role": "Pastel sage \u2014 third accent panel."
+      },
+      "surface_blush": {
+        "value": "#F8D7DA",
+        "role": "Pastel blush \u2014 fourth accent panel. Use SPARINGLY \u2014 picking too many pastels at once gets candy-shop."
+      },
+      "text_primary": {
+        "value": "#2A2520",
+        "role": "Warm dark \u2014 almost-black with warmth, never pure #000."
+      },
+      "text_secondary": {
+        "value": "#6B6358",
+        "role": "Warm gray for supporting text."
+      },
+      "text_muted": {
+        "value": "#A39A8E",
+        "role": "Disabled, tertiary."
+      },
+      "border": {
+        "value": "#E8DECD",
+        "role": "Subtle warm border."
+      },
+      "border_strong": {
+        "value": "#2A2520",
+        "role": "Emphasis border (focused input)."
+      },
+      "accent": {
+        "value": "#D97757",
+        "role": "Warm terracotta \u2014 primary accent. Pairs with all pastels."
+      },
+      "accent_alt": {
+        "value": "#5C7C5A",
+        "role": "Sage \u2014 alternative accent. Pick ONE primary."
+      }
+    },
+    "rules": [
+      "Pastels are PANEL backgrounds, not button colors. Buttons are accent terracotta (or accent_alt sage) \u2014 saturated, not pastel",
+      "Use ONE pastel surface per section. Stacking peach + sky + sage in adjacent sections makes it candy-shop",
+      "Background is warm off-white (#FCF8F3), NOT pure white. Pure white loses the warmth",
+      "Text is warm dark (#2A2520) \u2014 pure #000 reads cold and wrong here"
+    ]
+  },
+  "typography": {
+    "fonts": {
+      "display": {
+        "family": "S\u00f6hne, Inter Display, Inter, -apple-system, system-ui, sans-serif",
+        "google_font": "Inter",
+        "weights": [
+          500,
+          600,
+          700
+        ],
+        "use_for": [
+          "h1",
+          "h2",
+          "h3"
+        ],
+        "letter_spacing": "-0.03em",
+        "rule": "Sans-serif display, weights 600-700. This profile is sans throughout \u2014 the warmth comes from palette + layout, not from serif type. Loops, Read.cv, Notion marketing all do this."
+      },
+      "body": {
+        "family": "S\u00f6hne, Inter, -apple-system, system-ui, sans-serif",
+        "google_font": "Inter",
+        "weights": [
+          400,
+          500,
+          600
+        ],
+        "use_for": [
+          "body text",
+          "labels"
+        ],
+        "letter_spacing": "-0.01em",
+        "line_height": "1.6 \u2014 generous for warmth"
+      },
+      "decorative_serif": {
+        "family": "Editorial New, Tiempos Headline, Georgia, serif",
+        "google_font": "Cormorant Garamond",
+        "weights": [
+          400,
+          500
+        ],
+        "use_for": [
+          "ONE pull-quote per page, in italics. NOT for hero headlines. Serif here is a flourish, not the main type."
+        ],
+        "rule": "Optional. Use only if there's a specific moment where italic serif elevates a single quote or testimonial."
+      }
+    },
+    "scale": {
+      "base_px": 16,
+      "ratio": 1.25,
+      "sizes": {
+        "xs": 12,
+        "sm": 14,
+        "base": 16,
+        "lg": 18,
+        "xl": 22,
+        "2xl": 28,
+        "3xl": 36,
+        "4xl": 48,
+        "5xl": 64
+      }
+    },
+    "rules": [
+      "Sans-serif headlines \u2014 this is NOT editorial-premium. Inter or S\u00f6hne weight 600-700, tight tracking",
+      "Generous line-height (1.6 body, 1.1 hero) \u2014 part of the warmth",
+      "Use casual punctuation: em-dashes, ampersands. Avoid corporate parallelism in headlines"
+    ]
+  },
+  "spacing": {
+    "base_px": 4,
+    "scale": [
+      0,
+      4,
+      8,
+      12,
+      16,
+      20,
+      24,
+      32,
+      48,
+      64,
+      96,
+      128,
+      160
+    ],
+    "rules": [
+      "Generous \u2014 closer to editorial-premium than vercel-dev",
+      "Marketing sections: 96-128px gutters",
+      "Lots of vertical breathing room is part of the joy"
+    ]
+  },
+  "radius": {
+    "scale": {
+      "none": 0,
+      "sm": 6,
+      "md": 12,
+      "lg": 20,
+      "xl": 32,
+      "full": 9999
+    },
+    "rules": [
+      "DEFAULT radius is larger here: md = 12px (vs 6-8px in other profiles)",
+      "Cards: lg (20px). Hero pastel panels: xl (32px) for that signature curved-corner feel",
+      "Buttons: md (12px) \u2014 slightly rounder than other profiles, but still not pill-shaped"
+    ]
+  },
+  "elevation": {
+    "rules": [
+      "Subtle warm shadows allowed here: 0 4px 12px rgba(42,37,32,0.06)",
+      "Pastel panels can layer subtly via different pastel hues \u2014 peach over sage, etc.",
+      "Avoid aggressive shadows \u2014 this is soft, not dramatic"
+    ]
+  },
+  "components": {
+    "button_primary": {
+      "background": "accent",
+      "color": "background",
+      "border": "none",
+      "radius": "md",
+      "padding": "14px 22px",
+      "font": "body weight 600",
+      "hover": "brightness 0.95",
+      "rule": "Saturated terracotta on cream. The button is the warmth payoff."
+    },
+    "button_secondary": {
+      "background": "transparent",
+      "color": "text_primary",
+      "border": "1.5px solid border_strong",
+      "radius": "md",
+      "padding": "14px 22px",
+      "hover": "background surface_subtle"
+    },
+    "input_text": {
+      "background": "surface",
+      "color": "text_primary",
+      "border": "1px solid border",
+      "border_focus": "2px solid border_strong",
+      "radius": "md",
+      "padding": "12px 16px",
+      "placeholder_color": "text_muted"
+    },
+    "card_with_pastel": {
+      "background": "surface_peach (or sky/sage/blush \u2014 vary per use)",
+      "border": "none",
+      "radius": "lg",
+      "padding": "32px",
+      "rule": "Pastel panel cards are a signature. Use them for testimonials, feature highlights, CTA blocks."
+    }
+  },
+  "layout_patterns": {
+    "marketing_hero": {
+      "pattern": "centered-warm-with-pastel-detail",
+      "structure": "Centered hero, max-width 760px. Sans-serif headline (weight 700, 5xl-6xl, tight tracking). Friendly subhead. ONE terracotta CTA + one ghost. Below: a pastel-peach feature panel or testimonial card.",
+      "do": [
+        "Real product imagery if available \u2014 or a clean abstract shape in pastel",
+        "Conversational copy ('Made for the way you actually work')",
+        "Friendly emoji-free icons (Lucide)"
+      ],
+      "dont": [
+        "Stock illustrations of diverse-people-celebrating",
+        "Multiple pastels in the hero \u2014 pick one",
+        "Corporate parallelism ('Fast. Simple. Powerful.')"
+      ]
+    },
+    "landing_features": {
+      "pattern": "3-up-grid-with-pastel-cards",
+      "structure": "3-column grid (1-column mobile), each card uses a different pastel surface. Inside each: title (xl weight 600) + 2-sentence description.",
+      "do": [
+        "Vary the pastel per card (peach / sky / sage)",
+        "Keep card padding generous (32-40px)",
+        "Optional: a friendly Lucide icon at the top"
+      ]
+    },
+    "login": {
+      "pattern": "centered-card-on-pastel-panel",
+      "structure": "Centered card (radius lg, white surface) on a peach or sky pastel background. Title in display weight 600. Form fields with rounded inputs.",
+      "do": [
+        "One pastel as the page background",
+        "Card has subtle shadow (warm)"
+      ],
+      "dont": [
+        "Split-screen with marketing copy (that's editorial-premium territory)",
+        "Dark mode"
+      ]
+    }
+  },
+  "animations": {
+    "library": "gsap with back.out and elastic easings",
+    "philosophy": "Friendly and gentle. Bouncing, not snapping. But not childish.",
+    "patterns": {
+      "hover": "Card lifts 4-6px with shadow on hover, 300ms back.out(1.4).",
+      "button_press": "Slight scale(0.96) bounce, then release with elastic.",
+      "hero_intro": "Stagger fade-up on hero elements, 500ms each with 100ms stagger, back.out(1.4) easing.",
+      "icon_idle": "Optional: subtle 4s loop on hero icons \u2014 float, breathe, micro-rotation. Restrained."
+    },
+    "anti_patterns": [
+      "cartoonish bouncing",
+      "infinite spinning loaders",
+      "rainbow color cycling"
+    ]
+  },
+  "tailwind_config_snippet": {
+    "theme": {
+      "extend": {
+        "colors": {
+          "bg": "#FCF8F3",
+          "surface": "#FFFFFF",
+          "surface-subtle": "#F4EDE2",
+          "surface-peach": "#FCE4D6",
+          "surface-sky": "#D6EAF8",
+          "surface-sage": "#DCE8DA",
+          "surface-blush": "#F8D7DA",
+          "text": "#2A2520",
+          "text-secondary": "#6B6358",
+          "text-muted": "#A39A8E",
+          "border": "#E8DECD",
+          "accent": "#D97757",
+          "accent-alt": "#5C7C5A"
+        },
+        "fontFamily": {
+          "display": [
+            "S\u00f6hne",
+            "Inter Display",
+            "Inter",
+            "system-ui",
+            "sans-serif"
+          ],
+          "body": [
+            "S\u00f6hne",
+            "Inter",
+            "system-ui",
+            "sans-serif"
+          ],
+          "serif-quote": [
+            "Cormorant Garamond",
+            "Tiempos Headline",
+            "Georgia",
+            "serif"
+          ]
+        },
+        "borderRadius": {
+          "md": "12px",
+          "lg": "20px",
+          "xl": "32px"
+        }
+      }
+    }
+  }
+}

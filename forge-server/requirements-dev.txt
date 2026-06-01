@@ -1,0 +1,32 @@
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic[email]==2.9.2
+pydantic-settings==2.6.1
+
+# Database — Postgres (local Supabase in dev, hosted Supabase in prod).
+# aiosqlite is kept *only* for the one-shot migration script that reads the
+# legacy forge.db. Once every dev has run scripts/migrate_sqlite_to_postgres.py,
+# the aiosqlite line can be dropped.
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0          # async Postgres driver (used by SQLAlchemy)
+psycopg2-binary==2.9.10  # sync driver — Alembic uses this for offline ops
+aiosqlite==0.20.0        # legacy SQLite reader for one-shot migration
+alembic==1.14.0
+
+# Auth
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==3.2.2          # passlib 1.7.4 is incompatible with bcrypt >= 4.0
+python-multipart==0.0.17
+
+# Redis (used by sleep_manager — optional for dev, fails gracefully)
+redis[asyncio]==5.2.1
+
+# Docker SDK
+docker==7.1.0
+
+# HTTP client (preview proxy + opencode calls)
+httpx==0.27.2
+
+# Utilities
+python-dotenv==1.0.1

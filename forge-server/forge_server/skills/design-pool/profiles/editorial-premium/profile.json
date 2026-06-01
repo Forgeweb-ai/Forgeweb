@@ -1,0 +1,332 @@
+{
+  "$schema_comment": "A complete design profile. design-analyst returns a spec referencing tokens defined here; main agent generates code using only those tokens.",
+  "id": "editorial-premium",
+  "version": "1.0.0",
+  "updated_at": "2026-05-26",
+  "archetype": "premium-publishing",
+  "one_line": "Warm-neutral palette with serif display + sans body. Feels like Apple, Stripe, Anthropic, or v0's example pages.",
+  "inspired_by": [
+    "Apple marketing pages",
+    "Stripe homepage",
+    "Anthropic",
+    "Substack reader view",
+    "v0.dev Acme example"
+  ],
+  "palette": {
+    "modes": [
+      "light"
+    ],
+    "light": {
+      "background": {
+        "value": "#FAF8F4",
+        "role": "Page background. Warm cream, never pure white."
+      },
+      "surface": {
+        "value": "#FFFFFF",
+        "role": "Elevated surfaces (cards, modals). One step brighter than bg."
+      },
+      "surface_subtle": {
+        "value": "#F2EFE8",
+        "role": "Inset surfaces (input fields when not focused, code blocks)."
+      },
+      "text_primary": {
+        "value": "#1A1818",
+        "role": "Body text, headlines. Near-black with warmth, never pure #000."
+      },
+      "text_secondary": {
+        "value": "#5C5854",
+        "role": "Supporting text, metadata, labels."
+      },
+      "text_muted": {
+        "value": "#8A857F",
+        "role": "De-emphasized text. Last resort \u2014 prefer text_secondary."
+      },
+      "border": {
+        "value": "#E8E1D5",
+        "role": "Subtle dividers, input borders. Always low-contrast."
+      },
+      "border_emphasis": {
+        "value": "#1A1818",
+        "role": "Strong borders (focused input, primary button outline)."
+      },
+      "accent": {
+        "value": "#B5604D",
+        "role": "Terracotta. Single accent. Use for links, small flourishes \u2014 NOT buttons."
+      },
+      "accent_alt": {
+        "value": "#5C7C5A",
+        "role": "Sage. Alternative accent for hybrid projects. Pick ONE \u2014 accent or accent_alt \u2014 never both."
+      }
+    },
+    "rules": [
+      "Pick ONE accent color per project \u2014 accent OR accent_alt, never both",
+      "Never use pure black (#000) for text \u2014 use #1A1818 with warmth",
+      "Never use pure white (#FFF) for the page background \u2014 use #FAF8F4. Pure white is for surfaces only",
+      "Accent is for LINKS and small accents. The primary button is BLACK on cream, not accent-colored",
+      "No gradients anywhere. None. Anti-pattern #1 for this profile"
+    ]
+  },
+  "typography": {
+    "fonts": {
+      "display": {
+        "family": "Tiempos Headline, Playfair Display, PT Serif Pro, Georgia, serif",
+        "google_font": "Playfair Display",
+        "weights": [
+          500,
+          600,
+          700
+        ],
+        "use_for": [
+          "h1",
+          "h2",
+          "h3",
+          "hero copy"
+        ],
+        "letter_spacing": "-0.02em"
+      },
+      "body": {
+        "family": "Inter, S\u00f6hne, -apple-system, system-ui, sans-serif",
+        "google_font": "Inter",
+        "weights": [
+          400,
+          500,
+          600
+        ],
+        "use_for": [
+          "body text",
+          "labels",
+          "buttons",
+          "small caps"
+        ],
+        "letter_spacing": "-0.01em"
+      },
+      "mono": {
+        "family": "iA Writer Quattro Mono, JetBrains Mono, Menlo, monospace",
+        "google_font": "JetBrains Mono",
+        "weights": [
+          400,
+          500
+        ],
+        "use_for": [
+          "code",
+          "numeric tabular data"
+        ]
+      }
+    },
+    "scale": {
+      "base_px": 16,
+      "ratio": 1.25,
+      "sizes": {
+        "xs": 12,
+        "sm": 14,
+        "base": 16,
+        "lg": 18,
+        "xl": 22,
+        "2xl": 28,
+        "3xl": 36,
+        "4xl": 48,
+        "5xl": 64,
+        "6xl": 84
+      }
+    },
+    "rules": [
+      "Display font is for h1-h3 ONLY. h4+ uses body font in heavier weight",
+      "Body text in serif feels like a 2010 blog \u2014 DON'T do it. Body is always Inter/sans",
+      "Hero headlines: display font, weight 500-600, size 4xl-6xl, letter-spacing -0.02em",
+      "Body line-height: 1.6 for paragraphs, 1.4 for UI labels, 1.2 for headlines",
+      "Tabular numbers (font-variant-numeric: tabular-nums) for any aligned numeric columns"
+    ]
+  },
+  "spacing": {
+    "base_px": 4,
+    "scale": [
+      0,
+      4,
+      8,
+      12,
+      16,
+      20,
+      24,
+      32,
+      40,
+      48,
+      64,
+      80,
+      96,
+      128,
+      160
+    ],
+    "rules": [
+      "Generous whitespace is the look. Default to 1.5\u00d7 what feels right",
+      "Between major sections: 96-128px vertical",
+      "Between paragraphs: 24px",
+      "Between form fields: 24px (not 16px \u2014 too tight for this aesthetic)"
+    ]
+  },
+  "radius": {
+    "scale": {
+      "none": 0,
+      "sm": 4,
+      "md": 6,
+      "lg": 8,
+      "xl": 12,
+      "full": 9999
+    },
+    "rules": [
+      "Default radius: md (6px). Editorial designs use SMALL radii, not pill shapes",
+      "Inputs: md (6px). Buttons: md (6px) \u2014 same as inputs",
+      "Never radius-full on rectangular buttons. Pill buttons feel SaaS, wrong here",
+      "Avatars and circular elements use radius-full obviously"
+    ]
+  },
+  "elevation": {
+    "rules": [
+      "Almost no shadows. This profile is FLAT.",
+      "If a shadow is absolutely needed (floating menu, modal), use: 0 1px 2px rgba(26,24,24,0.04), 0 1px 1px rgba(26,24,24,0.02)",
+      "Never use shadow as decoration. If you reach for one, ask: 'does this need elevation, or am I trying to make it pop?' If the latter, remove the shadow and rethink"
+    ]
+  },
+  "components": {
+    "button_primary": {
+      "background": "text_primary",
+      "color": "background",
+      "border": "none",
+      "radius": "md",
+      "padding": "12px 24px",
+      "font": "body weight 500",
+      "font_size": "base",
+      "hover": "opacity 0.9",
+      "rule": "Primary button is BLACK on cream. No gradient, no accent color."
+    },
+    "button_secondary": {
+      "background": "transparent",
+      "color": "text_primary",
+      "border": "1px solid border_emphasis",
+      "radius": "md",
+      "padding": "12px 24px",
+      "hover": "background surface_subtle"
+    },
+    "button_ghost": {
+      "background": "transparent",
+      "color": "text_primary",
+      "border": "none",
+      "hover": "background surface_subtle"
+    },
+    "input_text": {
+      "background": "surface",
+      "color": "text_primary",
+      "border": "1px solid border",
+      "border_focus": "1px solid border_emphasis",
+      "radius": "md",
+      "padding": "12px 16px",
+      "font_size": "base",
+      "placeholder_color": "text_muted",
+      "rule": "Focus ring is the BORDER going darker, not a separate ring. No glow effects. No orange browser-default ring \u2014 set :focus-visible to override"
+    },
+    "link": {
+      "color": "accent",
+      "underline": "always for inline links, on-hover for nav links",
+      "rule": "Links are the ONLY place accent color appears in body content"
+    },
+    "card": {
+      "background": "surface",
+      "border": "1px solid border",
+      "radius": "lg",
+      "padding": "32px",
+      "shadow": "none"
+    }
+  },
+  "layout_patterns": {
+    "login": {
+      "pattern": "split-quote",
+      "structure": "Left panel: form (centered vertically, ~40% width). Right panel: editorial quote with subtle grid background (~60% width). One testimonial, named person + title. No carousel of logos.",
+      "do": [
+        "Single accent in the brand mark",
+        "Form fields stacked, 24px gap",
+        "OAuth buttons BELOW email (after primary path), not above"
+      ],
+      "dont": [
+        "Stacking marketing copy + form on the same side",
+        "Showing 3+ trust badges",
+        "'Demo credentials' boxes \u2014 feels like fintech bro"
+      ]
+    },
+    "landing_hero": {
+      "pattern": "centered-confident",
+      "structure": "Single-column, 720px max-width, generous top whitespace (160px+). Display headline in serif, supporting paragraph in sans. ONE primary CTA, optional secondary ghost button.",
+      "do": [
+        "Real product imagery or none at all",
+        "Single-sentence value prop, not a list"
+      ],
+      "dont": [
+        "3-up feature grid in the hero \u2014 push that below the fold",
+        "Hero video unless it's the actual product, not stock motion"
+      ]
+    },
+    "dashboard_or_app_ui": {
+      "pattern": "WRONG_PROFILE",
+      "structure": "This profile is for marketing/editorial surfaces. For product UIs, switch to linear-product.",
+      "fallback": "If forced, use generous spacing scaled down to 2/3 and keep the typography but expect the result to feel 'marketing-y'. Better: use linear-product."
+    }
+  },
+  "animations": {
+    "library": "gsap (optional \u2014 most motion here is plain CSS transitions)",
+    "philosophy": "Restrained. Confidence is stillness. Subtle 200-300ms ease-out transitions on hover; 400-500ms fade-in on hero text. No scroll-jacking, no parallax.",
+    "patterns": {
+      "hero_intro": "Fade-up the headline 400ms ease-out, then fade-up the subhead at +150ms, then the CTA at +300ms. That's the entire hero animation.",
+      "hover": "Background opacity shift or color tween, 200ms. NEVER scale transforms on layout elements (causes shift).",
+      "page_in": "Optional 200ms fade-in on body content on first load."
+    },
+    "anti_patterns": [
+      "scroll-jacking",
+      "parallax product shots",
+      "auto-rotating carousels",
+      "anything over 600ms"
+    ]
+  },
+  "tailwind_config_snippet": {
+    "$comment": "Drop-in extension. Main agent should write this to tailwind.config.js (or @theme in v4) and reference ONLY these tokens in components.",
+    "theme": {
+      "extend": {
+        "colors": {
+          "bg": "#FAF8F4",
+          "surface": "#FFFFFF",
+          "surface-subtle": "#F2EFE8",
+          "text": "#1A1818",
+          "text-secondary": "#5C5854",
+          "text-muted": "#8A857F",
+          "border": "#E8E1D5",
+          "border-emphasis": "#1A1818",
+          "accent": "#B5604D",
+          "accent-sage": "#5C7C5A"
+        },
+        "fontFamily": {
+          "display": [
+            "Playfair Display",
+            "Tiempos Headline",
+            "Georgia",
+            "serif"
+          ],
+          "body": [
+            "Inter",
+            "S\u00f6hne",
+            "system-ui",
+            "sans-serif"
+          ],
+          "mono": [
+            "JetBrains Mono",
+            "Menlo",
+            "monospace"
+          ]
+        },
+        "letterSpacing": {
+          "tight": "-0.02em",
+          "normal": "-0.01em"
+        },
+        "borderRadius": {
+          "md": "6px"
+        }
+      }
+    }
+  }
+}

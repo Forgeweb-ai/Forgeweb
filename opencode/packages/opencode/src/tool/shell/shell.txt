@@ -1,0 +1,35 @@
+${intro}
+
+Be aware: OS: ${os}, Shell: ${shell}
+
+${workdirSection}
+
+Use `${tmp}` for temporary work outside the workspace. This directory has already been created, already exists, and is pre-approved for external directory access.
+
+IMPORTANT: This tool is for terminal operations like git, npm, package managers, build scripts, and test runners. DO NOT use it for file operations (reading, writing, editing, searching, finding files) - use the specialized tools for this instead.
+
+# Scope of this shell
+
+You are running inside an isolated, single-project sandbox. You may inspect and act on THIS PROJECT ONLY — its own files, its own dev server, its own dependencies. You have no business looking at, and no permission to look at, anything outside this project. Specifically:
+
+- ALLOWED: project package managers (`npm`, `pnpm`, `yarn`, `bun`), build/test runners, `git` against this project's repo, language tools (`node`, `python`, `tsc`, etc.), DNS lookups (`dig`, `nslookup`), and project-scoped filesystem commands that operate inside the project working directory.
+- NOT ALLOWED — do not attempt these, they will be hard-rejected:
+  - Host / cross-container inspection: `docker`, `docker-compose`, `podman`, `kubectl`, `helm`, `pm2`, `systemctl`, `service`, `journalctl`, `dmesg`, `lsof`, `fuser`, `netstat`, `ss`, `ip`, `ifconfig`, `route`, `mount`, `findmnt`, `nmap`, `nc`, `socat`, `telnet`, `traceroute`, `strace`, `ltrace`, `gdb`.
+  - Privilege escalation / namespace changes: `sudo`, `su`, `doas`, `pkexec`, `chroot`, `unshare`, `nsenter`, `setcap`.
+  - System mutation / persistence: `reboot`, `shutdown`, `halt`, `init`, `modprobe`, `sysctl`, `crontab`, `at`.
+  - Dynamic-execution escape hatches: `eval`, `bash -c "<inline>"`, `sh -c "<inline>"`, `pwsh -Command "<inline>"`, `xargs sh -c …`. Issue commands directly instead.
+  - Reading sensitive paths: `/proc/*`, `/sys/*`, `/var/run/docker.sock`, `/var/lib/docker/*`, `/etc/shadow`, `/etc/sudoers`, `/etc/passwd`, `/root/*`, `/host/*`, `~/.ssh`, `~/.aws`, `~/.docker`, `~/.kube`, `~/.npmrc`, `~/.netrc`, `~/.gnupg`.
+
+If you find yourself reaching for one of the not-allowed commands to debug a problem, stop and re-diagnose using project-scoped tools. The host, the docker daemon, and other projects are not your concern — they are not yours to see.
+
+${commandSection}
+
+# Git and GitHub
+- Only commit, amend, push, or create PRs when explicitly requested.
+- Before committing, inspect `git status`, `git diff`, and `git log --oneline -10`; stage only intended files and never commit secrets.
+- Write a concise commit message that matches the repo style.
+- Do not update git config, skip hooks, use interactive `-i`, force-push, or create empty commits unless explicitly requested.
+- If a commit fails or hooks reject it, fix the issue and create a new commit; do not amend the failed commit.
+- Before creating a PR, inspect status, diff, remote tracking, recent commits, and the diff from the base branch.
+- Review all commits included in the PR, not just the latest commit.
+- Use `gh` for GitHub tasks, including PRs, issues, checks, and releases; return the PR URL when done.

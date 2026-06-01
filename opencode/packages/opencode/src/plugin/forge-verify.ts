@@ -1,0 +1,265 @@
+/**
+ * forge-verify plugin
+ * ===================
+ * Auto-runs the `verify` subagent after the primary `build` agent finishes a turn.
+ *
+ * Architecture:
+ *   - Loaded as an INTERNAL_PLUGIN, but a no-op unless FORGE_PROJECT_ID is set
+ *     in the shell environment (so non-Forge opencode usage is unaffected).
+ *   - Listens on the bus (Hooks.event) for v2 session events.
+ *   - Tracks the active agent per session via `session.next.step.started`
+ *     (Step.Ended doesn't carry the agent name).
+ *   - On `session.next.step.ended`, if the just-completed step belonged to the
+ *     `build` (primary) agent AND finish reason is "stop" (turn really done,
+ *     not mid-tool-call), spawns the verify subagent via the SDK's
+ *     `session.promptAsync` — fire-and-forget so we don't block the bus loop.
+ *   - Enforces a hard budget: max 5 attempts on the same error signature,
+ *     max 8 total attempts per session, max 10 minutes wall clock per session.
+ *   - Parses verify's final assistant text for the escalate JSON. If present,
+ *     re-prompts the primary `build` agent with the error + suspected files —
+ *     verify never invokes the main agent itself; the plugin routes.
+ *
+ * What this plugin DOES NOT do:
+ *   - Sanitize tool/reasoning parts for the FE — that lives in the message
+ *     publish layer (see task #4). This plugin only orchestrates WHO runs.
+ *   - Modify the user's project files — verify itself does that.
+ *   - Mention containers, docker, or commands in any message it could surface —
+ *     none of its emissions reach the FE; only the verify agent's own text does.
+ */
+import type { Hooks, PluginInput } from "@opencode-ai/plugin"
+import * as Log from "@opencode-ai/core/util/log"
+import { ForgeRuntimeState } from "../forge/runtime-state"
+
+const log = Log.create({ service: "plugin.forge-verify" })
+
+// Budget — must mirror the limits in verify.txt so the plugin and the agent
+// agree on when to stop trying.
+const TOTAL_BUDGET = 8
+const PER_SIGNATURE_BUDGET = 5
+const WALL_CLOCK_MS = 10 * 60 * 1000
+
+// v2 event type strings (from packages/core/src/session-event.ts).
+const STEP_STARTED = "session.next.step.started"
+const STEP_ENDED = "session.next.step.ended"
+
+const PRIMARY_AGENT = "build"
+const VERIFY_AGENT = "verify"
+
+interface VerifyRunState {
+  startedAt: number
+  totalAttempts: number
+  signatureAttempts: Map<string, number>
+  lastErrorSignature?: string
+}
+
+interface EscalateMessage {
+  escalate: true
+  error: string
+  suspected_files: string[]
+  attempts: number
+}
+
+/**
+ * Per-session budget bookkeeping for the verify loop. Agent-tracking lives in
+ * the shared ForgeRuntimeState module so the SSE filter sees the same view.
+ */
+const runs = new Map<string /* sessionID */, VerifyRunState>()
+
+function shouldSkipForBudget(state: VerifyRunState): string | null {
+  if (state.totalAttempts >= TOTAL_BUDGET) return "total budget exhausted"
+  if (Date.now() - state.startedAt > WALL_CLOCK_MS) return "wall clock exhausted"
+  if (state.lastErrorSignature) {
+    const n = state.signatureAttempts.get(state.lastErrorSignature) ?? 0
+    if (n >= PER_SIGNATURE_BUDGET) {
+      return `signature budget exhausted (${state.lastErrorSignature})`
+    }
+  }
+  return null
+}
+
+function tryParseEscalate(text: string): EscalateMessage | null {
+  // verify emits the handoff as a JSON object somewhere in its final message.
+  // Be lenient: find the first {...} containing "escalate": true.
+  const match = text.match(/\{[\s\S]*?"escalate"\s*:\s*true[\s\S]*?\}/)
+  if (!match) return null
+  try {
+    const obj = JSON.parse(match[0])
+    if (obj && obj.escalate === true && typeof obj.error === "string") {
+      return obj as EscalateMessage
+    }
+  } catch {
+    /* not valid JSON — drop */
+  }
+  return null
+}
+
+async function readVerifyFinalText(
+  client: PluginInput["client"],
+  sessionID: string,
+): Promise<string> {
+  // Pull the most recent assistant message from the verify run.
+  // promptAsync is fire-and-forget, so we read messages after a settle delay.
+  // 5s should be plenty for verify to finish a tight check on a healthy app;
+  // if it's still working we'll just see partial text and try again next loop.
+  try {
+    const res = await client.session.messages({ path: { id: sessionID } })
+    const messages = (res as any)?.data ?? []
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i]
+      if (m?.info?.role !== "assistant") continue
+      const parts = m.parts ?? []
+      const text = parts
+        .filter((p: any) => p?.type === "text")
+        .map((p: any) => p.text ?? "")
+        .join("\n")
+      if (text) return text
+    }
+  } catch (err) {
+    log.warn("failed to read verify final text", { sessionID, error: String(err) })
+  }
+  return ""
+}
+
+export const ForgeVerifyPlugin = async (input: PluginInput): Promise<Hooks> => {
+  if (!ForgeRuntimeState.isForgeProject()) {
+    // No-op for non-Forge users. Plugin still loads cleanly; just does nothing.
+    log.info("forge-verify: not a Forge project, plugin idle")
+    return {}
+  }
+
+  log.info("forge-verify plugin active", {
+    projectID: process.env.FORGE_PROJECT_ID,
+  })
+
+  return {
+    event: async ({ event }) => {
+      const e = event as any
+      const type: string | undefined = e?.type
+      const props = e?.properties ?? {}
+      const sessionID: string | undefined = props.sessionID
+      if (!type || !sessionID) return
+
+      // Track which agent each step belongs to — shared with the SSE filter.
+      if (type === STEP_STARTED) {
+        ForgeRuntimeState.recordStepStarted(sessionID, props.agent)
+        return
+      }
+
+      if (type !== STEP_ENDED) return
+
+      // Read the active agent BEFORE recordStepEnded clears it on finish=stop.
+      const agent = ForgeRuntimeState.getActiveAgent(sessionID)
+      const finish: string | undefined = props.finish
+      ForgeRuntimeState.recordStepEnded(sessionID, finish)
+
+      // Only follow the primary agent's turns. If the ending step was verify
+      // itself, or any other subagent, we MUST skip — otherwise infinite loop.
+      if (agent !== PRIMARY_AGENT) return
+
+      // Only fire when the agent is truly done with its turn — not mid-tool-call.
+      // AI-SDK finish reasons: "stop" = done, "tool-calls" = more steps coming,
+      // "length" / "content-filter" / "error" = abort cases we shouldn't verify.
+      if (finish !== "stop") return
+
+      const state =
+        runs.get(sessionID) ?? {
+          startedAt: Date.now(),
+          totalAttempts: 0,
+          signatureAttempts: new Map(),
+        }
+      runs.set(sessionID, state)
+
+      const skipReason = shouldSkipForBudget(state)
+      if (skipReason) {
+        log.warn("verify run blocked by budget", { sessionID, reason: skipReason })
+        return
+      }
+
+      state.totalAttempts += 1
+      log.info("spawning verify subagent", {
+        sessionID,
+        attempt: state.totalAttempts,
+        budget: TOTAL_BUDGET,
+      })
+
+      try {
+        // Fire-and-forget the verify run on this same session.
+        // The verify agent's system prompt + permissions are baked into the
+        // fork (see src/agent/prompt/verify.txt and src/agent/agent.ts).
+        await input.client.session.promptAsync({
+          path: { id: sessionID },
+          body: {
+            agent: VERIFY_AGENT,
+            parts: [
+              {
+                type: "text",
+                text:
+                  "Verify the current project state. " +
+                  "Run the checks defined in your system prompt. " +
+                  "If everything is clean, emit nothing. " +
+                  "If you fix something, emit only the one final user-facing line.",
+              },
+            ],
+          },
+        })
+      } catch (err) {
+        log.error("verify promptAsync failed", { sessionID, error: String(err) })
+        return
+      }
+
+      // Poll for verify's final assistant text to detect escalation.
+      // We give verify up to ~30s of wall clock; if it's still going, we'll
+      // see the result on the next Step.Ended cycle.
+      const deadline = Date.now() + 30_000
+      let text = ""
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 2000))
+        text = await readVerifyFinalText(input.client, sessionID)
+        if (text) break
+      }
+      if (!text) return
+
+      const escalate = tryParseEscalate(text)
+      if (!escalate) return
+
+      // Track per-signature attempts. We hash the error message (first 80 chars)
+      // so "same error keeps reappearing" gets blocked by PER_SIGNATURE_BUDGET.
+      const signature = escalate.error.slice(0, 80)
+      state.lastErrorSignature = signature
+      state.signatureAttempts.set(
+        signature,
+        (state.signatureAttempts.get(signature) ?? 0) + 1,
+      )
+
+      // Hand the error back to the main build agent — never to verify again,
+      // never to any other subagent.
+      log.info("escalating to main agent", {
+        sessionID,
+        signature,
+        suspected: escalate.suspected_files,
+      })
+      try {
+        await input.client.session.promptAsync({
+          path: { id: sessionID },
+          body: {
+            agent: PRIMARY_AGENT,
+            parts: [
+              {
+                type: "text",
+                text:
+                  `The post-completion check found an issue I couldn't auto-fix: ${escalate.error}\n` +
+                  `Suspected files: ${escalate.suspected_files.join(", ") || "(unknown)"}\n` +
+                  `Please address this and confirm when done. Do not announce that a check ran — ` +
+                  `the user already saw the sanitized status message.`,
+              },
+            ],
+          },
+        })
+      } catch (err) {
+        log.error("escalation promptAsync failed", { sessionID, error: String(err) })
+      }
+    },
+  }
+}
+
+export default ForgeVerifyPlugin

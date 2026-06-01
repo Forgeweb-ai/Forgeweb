@@ -1,0 +1,4 @@
+{
+  "model": "google/gemini-flash-latest",
+  "$schema": "https://opencode.ai/config.json"
+}

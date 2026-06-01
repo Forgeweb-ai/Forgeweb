@@ -1,0 +1,328 @@
+{
+  "id": "arc-experimental",
+  "version": "1.0.0",
+  "updated_at": "2026-05-26",
+  "archetype": "novel-identity",
+  "one_line": "Signature gradient as identity (intentional, not template) + sharp typography + bold hero moments. Identity-as-design. Feels like Arc Browser, Granola, Tana.",
+  "inspired_by": [
+    "Arc Browser",
+    "Granola",
+    "Tana",
+    "Linear Loops (the brand site, not the app)"
+  ],
+  "palette": {
+    "modes": [
+      "dark",
+      "light"
+    ],
+    "$gradient_rule": "This is the ONE profile where gradients are CORRECT \u2014 but only ONE signature gradient per project, used as identity, not template clutter. Pick a direction (orange-pink, blue-purple, green-teal, etc.) and use it consistently.",
+    "dark": {
+      "background": {
+        "value": "#0A0A0F",
+        "role": "Dark base with a hint of cool. Backdrop for the gradient."
+      },
+      "surface": {
+        "value": "#15151E",
+        "role": "Card surface."
+      },
+      "surface_subtle": {
+        "value": "#1F1F2A"
+      },
+      "text_primary": {
+        "value": "#FFFFFF",
+        "role": "Sharp white \u2014 this profile uses pure white text for max contrast against gradients."
+      },
+      "text_secondary": {
+        "value": "#A8A8B5"
+      },
+      "text_muted": {
+        "value": "#6B6B7A"
+      },
+      "border": {
+        "value": "#2A2A38"
+      },
+      "border_strong": {
+        "value": "#3D3D4D"
+      },
+      "gradient_signature": {
+        "value": "linear-gradient(135deg, #FF6B35 0%, #F037A5 50%, #6A4FE7 100%)",
+        "role": "Orange \u2192 Pink \u2192 Purple. The PROJECT'S signature. Pick ONE gradient direction and reuse it for: hero panel bg, brand mark, primary CTA backgrounds.",
+        "alternatives": {
+          "blue_purple": "linear-gradient(135deg, #4FACFE 0%, #00F2FE 100%)",
+          "green_teal": "linear-gradient(135deg, #11998E 0%, #38EF7D 100%)",
+          "warm": "linear-gradient(135deg, #FF6B35 0%, #FFA62B 100%)",
+          "cool_dawn": "linear-gradient(135deg, #667EEA 0%, #764BA2 100%)"
+        },
+        "rule": "PICK ONE alternative per project, never combine"
+      },
+      "accent_solid": {
+        "value": "#F037A5",
+        "role": "Solid pink \u2014 sampled from the gradient. Used for inline links, small accents."
+      }
+    },
+    "light": {
+      "background": {
+        "value": "#FAFAFB"
+      },
+      "surface": {
+        "value": "#FFFFFF"
+      },
+      "text_primary": {
+        "value": "#0A0A0F"
+      },
+      "text_secondary": {
+        "value": "#4A4A5A"
+      },
+      "border": {
+        "value": "#E4E4EC"
+      }
+    },
+    "rules": [
+      "The gradient is the brand. Not a generic AI-pink-purple template gradient \u2014 a PURPOSEFUL color choice that the user explicitly picked",
+      "Use the gradient SPARINGLY: hero section bg (one), primary CTA bg (one), brand mark fill (one). Not on every card",
+      "Outside the signature gradient, everything else is monochrome (dark surfaces, white text)",
+      "Solid accent (sampled from the gradient) is for small touches: inline link color, focus ring color, active-state indicator"
+    ]
+  },
+  "typography": {
+    "fonts": {
+      "display": {
+        "family": "S\u00f6hne Breit Halbfett, Inter Display, Inter, -apple-system, system-ui, sans-serif",
+        "google_font": "Inter",
+        "weights": [
+          600,
+          700,
+          800
+        ],
+        "use_for": [
+          "hero",
+          "section heads"
+        ],
+        "letter_spacing": "-0.03em"
+      },
+      "body": {
+        "family": "S\u00f6hne, Inter, system-ui, sans-serif",
+        "google_font": "Inter",
+        "weights": [
+          400,
+          500,
+          600
+        ],
+        "use_for": [
+          "body",
+          "labels"
+        ],
+        "letter_spacing": "-0.01em"
+      },
+      "mono_rounded": {
+        "family": "S\u00f6hne Mono, Berkeley Mono, JetBrains Mono, ui-monospace, monospace",
+        "google_font": "JetBrains Mono",
+        "weights": [
+          400,
+          500
+        ],
+        "use_for": [
+          "small UI labels",
+          "version numbers",
+          "tagline-style copy"
+        ],
+        "rule": "Mono used sparingly as flourish \u2014 version tags, system notifications, beta labels."
+      }
+    },
+    "scale": {
+      "base_px": 15,
+      "ratio": 1.25,
+      "sizes": {
+        "xs": 11,
+        "sm": 13,
+        "base": 15,
+        "md": 17,
+        "lg": 20,
+        "xl": 26,
+        "2xl": 34,
+        "3xl": 44,
+        "4xl": 60,
+        "5xl": 80,
+        "6xl": 108
+      }
+    },
+    "rules": [
+      "Headlines are bold \u2014 weight 700-800 with tight tracking",
+      "The voice is confident, brand-forward. Marketing copy reads more like a manifesto than features",
+      "Mono for small flourishes: 'v2.4', 'BETA', 'New', 'Pre-order'"
+    ]
+  },
+  "spacing": {
+    "base_px": 4,
+    "scale": [
+      0,
+      4,
+      8,
+      12,
+      16,
+      24,
+      32,
+      48,
+      64,
+      96,
+      128,
+      200
+    ],
+    "rules": [
+      "Marketing pages: 96-128px section gutters",
+      "Product UI screens in this aesthetic stay denser (24-32px)"
+    ]
+  },
+  "radius": {
+    "scale": {
+      "none": 0,
+      "sm": 6,
+      "md": 10,
+      "lg": 16,
+      "xl": 24,
+      "2xl": 32,
+      "full": 9999
+    },
+    "rules": [
+      "Larger radii than linear-product or vercel-dev \u2014 this aesthetic embraces curve",
+      "Buttons: md (10px) or pill (full) \u2014 both work depending on context",
+      "Hero gradient panels: xl-2xl (24-32px) for that signature curved-corner feel",
+      "Cards: lg (16px)"
+    ]
+  },
+  "elevation": {
+    "rules": [
+      "Glow effects ARE allowed here \u2014 they're part of the gradient identity",
+      "Card hover: subtle gradient-colored glow",
+      "Primary CTA hover: brightness shift + slight scale (1.02)",
+      "But still: no clipart-style soft shadows on cards in the main flow"
+    ]
+  },
+  "components": {
+    "button_primary": {
+      "background": "gradient_signature",
+      "color": "#FFFFFF",
+      "border": "none",
+      "radius": "md (10px) OR full (pill) \u2014 both work",
+      "padding": "12px 24px",
+      "font": "body weight 600",
+      "hover": "brightness 1.1 + glow shadow",
+      "rule": "Primary CTAs use the signature gradient. This is the ONE place gradient buttons are correct."
+    },
+    "button_secondary": {
+      "background": "transparent",
+      "color": "text_primary",
+      "border": "1.5px solid border_strong",
+      "radius": "md",
+      "padding": "12px 24px"
+    },
+    "hero_panel": {
+      "background": "gradient_signature",
+      "padding": "96px 64px",
+      "radius": "xl-2xl (24-32px)",
+      "rule": "Hero panel uses the signature gradient as full background. White text on top. ONE per page."
+    },
+    "version_chip": {
+      "background": "transparent",
+      "color": "text_secondary",
+      "border": "1px solid border_strong",
+      "radius": "full",
+      "padding": "2px 8px",
+      "font": "mono weight 500",
+      "font_size": "xs",
+      "rule": "'v2.4' or 'BETA' chips in mono. A signature small flourish."
+    }
+  },
+  "layout_patterns": {
+    "marketing_hero": {
+      "pattern": "gradient-panel-hero",
+      "structure": "Top: small brand mark + nav. Below: a HUGE gradient panel (full viewport width, radius xl, 96-128px padding) with brand statement headline in white. Single gradient CTA + ghost outline.",
+      "do": [
+        "Brand statement is short and bold \u2014 6-10 words",
+        "ONE gradient panel per page",
+        "Mono version chip near brand mark"
+      ],
+      "dont": [
+        "Multiple gradients per page",
+        "Stock 'AI hero illustrations'",
+        "Pastel gradients (this profile is BOLD)"
+      ]
+    },
+    "product_dashboard": {
+      "pattern": "monochrome-with-gradient-accents",
+      "structure": "Mostly dark monochrome surfaces. Gradient appears only on: the brand mark in the sidebar, the primary CTA, possibly an active-state indicator strip.",
+      "do": [
+        "Restraint in product UI \u2014 gradient is for marketing/identity moments, not chrome"
+      ]
+    },
+    "pricing": {
+      "pattern": "single-tier-confident-or-gradient-emphasis-on-recommended",
+      "structure": "If two tiers: the recommended tier has a thin gradient border (1-2px), others have neutral borders. If single tier: gradient CTA, monochrome rest.",
+      "do": [
+        "Subtle gradient as a focusing tool, not a flashing one"
+      ]
+    }
+  },
+  "animations": {
+    "library": "gsap with custom easings + WebGL/canvas if budget allows",
+    "philosophy": "Identity-driven motion. The gradient should LIVE \u2014 slow continuous loops in the background.",
+    "patterns": {
+      "gradient_loop": "Background-position animation on the signature gradient, 12-20s linear loop. Subtle but present.",
+      "hero_intro": "Headline fade-up + scale(1.05 \u2192 1.0), 800ms cubic-bezier(0.16, 1, 0.3, 1). Cinematic.",
+      "cta_glow": "Primary CTA has a soft gradient-colored glow that pulses slowly (3s loop, opacity 0.6 \u2192 1.0).",
+      "page_transition": "Cross-fade with slight scale, 400ms."
+    },
+    "anti_patterns": [
+      "jittery / hyper motion",
+      "spinning gradients (the gradient should drift, not rotate fast)",
+      "multiple competing animation loops"
+    ]
+  },
+  "tailwind_config_snippet": {
+    "theme": {
+      "extend": {
+        "colors": {
+          "bg": "#0A0A0F",
+          "surface": "#15151E",
+          "surface-subtle": "#1F1F2A",
+          "text": "#FFFFFF",
+          "text-secondary": "#A8A8B5",
+          "text-muted": "#6B6B7A",
+          "border": "#2A2A38",
+          "border-strong": "#3D3D4D",
+          "accent-solid": "#F037A5"
+        },
+        "backgroundImage": {
+          "signature": "linear-gradient(135deg, #FF6B35 0%, #F037A5 50%, #6A4FE7 100%)"
+        },
+        "fontFamily": {
+          "display": [
+            "S\u00f6hne Breit Halbfett",
+            "Inter Display",
+            "Inter",
+            "system-ui",
+            "sans-serif"
+          ],
+          "body": [
+            "S\u00f6hne",
+            "Inter",
+            "system-ui",
+            "sans-serif"
+          ],
+          "mono": [
+            "JetBrains Mono",
+            "S\u00f6hne Mono",
+            "ui-monospace",
+            "monospace"
+          ]
+        },
+        "borderRadius": {
+          "md": "10px",
+          "lg": "16px",
+          "xl": "24px",
+          "2xl": "32px"
+        }
+      }
+    }
+  }
+}

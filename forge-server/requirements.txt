@@ -1,0 +1,34 @@
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.9.2
+pydantic-settings==2.6.1
+
+# Database
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0        # PostgreSQL (production)
+aiosqlite==0.20.0      # SQLite  (local dev — no Postgres needed)
+alembic==1.14.0
+
+# Auth
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.17
+
+# Redis (heartbeat store)
+redis[asyncio]==5.2.1
+
+# Docker SDK
+docker==7.1.0
+
+# HTTP client (preview proxy + opencode calls)
+httpx==0.27.2
+
+# Supabase
+supabase==2.9.1
+
+# Utilities
+python-dotenv==1.0.1
+
+# Screenshots (optional — for showcase thumbnail capture)
+# After pip install, run: playwright install chromium --with-deps
+playwright>=1.44.0

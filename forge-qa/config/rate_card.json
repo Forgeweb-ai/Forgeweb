@@ -1,0 +1,142 @@
+{
+  "_meta": {
+    "description": "Per-model cost rate card for Forge. Prices are USD per 1,000,000 tokens. Sourced from each vendor's official docs as of 2026-05-30. Update when vendors change pricing — every consumer of this file (proxy meter, qa harness, BYOK dashboard, Platform-managed margin) reads this same file.",
+    "currency": "USD",
+    "unit": "per_million_tokens",
+    "updated": "2026-05-30",
+    "fields": {
+      "input": "Base $/1M for prompt tokens",
+      "output": "Base $/1M for completion tokens",
+      "cache_read": "$/1M when reading from prompt cache (Anthropic: cache_read_input_tokens; Google: cached input)",
+      "cache_write": "$/1M when writing to prompt cache (Anthropic: cache_creation_input_tokens). Null where vendor does not charge separately.",
+      "context_window": "Max prompt tokens (input + history + system)",
+      "max_output_tokens": "Hard ceiling on completion length",
+      "tokenizer_inflate_factor": "Approx multiplier vs Sonnet baseline tokenizer on identical English. >1 means this model tokenizes the SAME text into more tokens — real cost vs other models is worse than the rate card suggests by this factor.",
+      "supports_images": "True if model accepts image content in input",
+      "vendor": "anthropic | google | openai | moonshot | deepseek",
+      "slot_fit": "Which Forge slot(s) this is a credible candidate for"
+    }
+  },
+  "models": {
+    "claude-opus-4-7": {
+      "vendor": "anthropic",
+      "input": 5.00,
+      "output": 25.00,
+      "cache_read": 0.50,
+      "cache_write": 6.25,
+      "context_window": 200000,
+      "max_output_tokens": 32000,
+      "tokenizer_inflate_factor": 1.35,
+      "supports_images": true,
+      "slot_fit": ["judge", "design", "premium_build"]
+    },
+    "claude-sonnet-4-6": {
+      "vendor": "anthropic",
+      "input": 3.00,
+      "output": 15.00,
+      "cache_read": 0.30,
+      "cache_write": 3.75,
+      "context_window": 200000,
+      "max_output_tokens": 64000,
+      "tokenizer_inflate_factor": 1.00,
+      "supports_images": true,
+      "slot_fit": ["design", "build", "fixer"]
+    },
+    "claude-haiku-4-5": {
+      "vendor": "anthropic",
+      "input": 1.00,
+      "output": 5.00,
+      "cache_read": 0.10,
+      "cache_write": 1.25,
+      "context_window": 200000,
+      "max_output_tokens": 64000,
+      "tokenizer_inflate_factor": 1.00,
+      "supports_images": true,
+      "slot_fit": ["chat", "fixer"]
+    },
+    "gemini-3.5-flash": {
+      "vendor": "google",
+      "input": 1.50,
+      "output": 9.00,
+      "cache_read": 0.15,
+      "cache_write": null,
+      "context_window": 1048576,
+      "max_output_tokens": 65536,
+      "tokenizer_inflate_factor": 1.00,
+      "supports_images": true,
+      "slot_fit": ["build", "design", "image"]
+    },
+    "gemini-3-flash": {
+      "vendor": "google",
+      "input": 0.50,
+      "output": 3.00,
+      "cache_read": 0.05,
+      "cache_write": null,
+      "context_window": 1048576,
+      "max_output_tokens": 65536,
+      "tokenizer_inflate_factor": 1.00,
+      "supports_images": true,
+      "slot_fit": ["build", "image", "chat"]
+    },
+    "gemini-2.5-flash": {
+      "vendor": "google",
+      "input": 0.30,
+      "output": 2.50,
+      "cache_read": 0.03,
+      "cache_write": null,
+      "context_window": 1048576,
+      "max_output_tokens": 65536,
+      "tokenizer_inflate_factor": 1.00,
+      "supports_images": true,
+      "slot_fit": ["chat", "image"]
+    },
+    "gemini-flash-lite-3-1": {
+      "vendor": "google",
+      "input": 0.075,
+      "output": 0.40,
+      "cache_read": 0.0075,
+      "cache_write": null,
+      "context_window": 1048576,
+      "max_output_tokens": 65536,
+      "tokenizer_inflate_factor": 1.00,
+      "supports_images": true,
+      "slot_fit": ["chat"]
+    },
+    "gpt-4o-mini": {
+      "vendor": "openai",
+      "input": 0.15,
+      "output": 0.60,
+      "cache_read": 0.075,
+      "cache_write": null,
+      "context_window": 128000,
+      "max_output_tokens": 16384,
+      "tokenizer_inflate_factor": 1.00,
+      "supports_images": true,
+      "slot_fit": ["chat"]
+    },
+    "kimi-k2.6": {
+      "vendor": "moonshot",
+      "input": 0.95,
+      "output": 4.00,
+      "cache_read": 0.16,
+      "cache_write": null,
+      "context_window": 256000,
+      "max_output_tokens": 32000,
+      "tokenizer_inflate_factor": 1.05,
+      "supports_images": true,
+      "slot_fit": ["build", "design"]
+    },
+    "deepseek-v3": {
+      "vendor": "deepseek",
+      "input": 0.14,
+      "output": 0.28,
+      "cache_read": 0.014,
+      "cache_write": null,
+      "context_window": 128000,
+      "max_output_tokens": 8192,
+      "tokenizer_inflate_factor": 1.00,
+      "supports_images": false,
+      "slot_fit": ["chat", "build"]
+    }
+  }
+}

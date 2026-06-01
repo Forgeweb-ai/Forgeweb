@@ -1,0 +1,50 @@
+# ── Forge — Core Dependencies ─────────────────────────────────────────────────
+
+# Server
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+python-dotenv>=1.0.0
+
+# Data validation
+pydantic>=2.7.0
+
+# Together AI client (used for dev + data generation)
+together>=1.2.0
+
+# HTTP client
+httpx>=0.27.0
+aiohttp>=3.9.0
+
+# ── Database ──────────────────────────────────────────────────────────────────
+sqlalchemy>=2.0.0
+aiosqlite>=0.20.0          # async SQLite driver (default for local dev — zero config)
+asyncpg>=0.29.0            # async PostgreSQL driver (used in prod via DATABASE_URL)
+greenlet>=3.0.0            # REQUIRED by SQLAlchemy async — must be installed explicitly
+alembic>=1.13.0            # migrations (optional, init_db() handles creation)
+
+# ── Vector embeddings (context-aware updates) ─────────────────────────────────
+sentence-transformers>=3.0.0   # all-MiniLM-L6-v2, ~90MB download on first use
+torch>=2.0.0                   # required by sentence-transformers (CPU-only ok)
+
+# ── Training Dependencies (install separately on Colab/RunPod) ────────────────
+# pip install "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
+# pip install --no-deps trl peft accelerate bitsandbytes
+
+# ── Local Inference (install if running model on-device) ─────────────────────
+# pip install llama-cpp-python
+
+# ── Data pipeline ─────────────────────────────────────────────────────────────
+datasets>=2.19.0
+tqdm>=4.66.0
+
+# ── Auth (JWT + password hashing) ────────────────────────────────────────────
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+
+# ── Docker SDK (manages project containers) ───────────────────────────────────
+docker>=7.0.0
+
+# ── Headless browser (project screenshots for showcase thumbnails) ────────────
+# After pip install, run once: playwright install chromium --with-deps
+playwright>=1.40.0

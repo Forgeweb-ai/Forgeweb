@@ -1,0 +1,367 @@
+{
+  "id": "mercury-fintech",
+  "version": "1.0.0",
+  "updated_at": "2026-05-26",
+  "archetype": "modern-fintech",
+  "one_line": "Deep navy + cream + sage accent. The fintech aesthetic that killed the bright-blue-bank stereotype. Feels like Mercury, Brex, Ramp.",
+  "inspired_by": [
+    "Mercury",
+    "Brex",
+    "Ramp",
+    "Modern Treasury"
+  ],
+  "palette": {
+    "modes": [
+      "light",
+      "dark"
+    ],
+    "light": {
+      "background": {
+        "value": "#F5F1EA",
+        "role": "Warm cream/parchment, not pure white. Distinct from editorial-premium's slightly cooler #FAF8F4."
+      },
+      "surface": {
+        "value": "#FFFFFF",
+        "role": "Cards and elevated surfaces."
+      },
+      "surface_subtle": {
+        "value": "#EFEAE0",
+        "role": "Inset surfaces, secondary panels."
+      },
+      "surface_navy": {
+        "value": "#0F1419",
+        "role": "Deep navy used for hero sections, footers, accent panels. Signature."
+      },
+      "text_primary": {
+        "value": "#0F1419",
+        "role": "Deep navy as text on cream \u2014 the signature combination."
+      },
+      "text_secondary": {
+        "value": "#4A5560",
+        "role": "Muted navy for supporting text."
+      },
+      "text_muted": {
+        "value": "#8B95A1",
+        "role": "Disabled, tertiary."
+      },
+      "text_on_navy": {
+        "value": "#F5F1EA",
+        "role": "Cream text when the bg is navy."
+      },
+      "border": {
+        "value": "#DCD5C6",
+        "role": "Subtle warm border."
+      },
+      "border_strong": {
+        "value": "#0F1419",
+        "role": "Emphasis border (focused input)."
+      },
+      "accent_sage": {
+        "value": "#5C7C5A",
+        "role": "Sage green \u2014 primary accent. Used for CTAs, success states, financial-positive indicators."
+      },
+      "accent_gold": {
+        "value": "#B8924A",
+        "role": "Olive-gold \u2014 secondary accent. Used sparingly for premium signaling."
+      },
+      "success": {
+        "value": "#5C7C5A",
+        "role": "Same as sage \u2014 incoming money, positive states."
+      },
+      "danger": {
+        "value": "#A0473D",
+        "role": "Muted terracotta-red. Bank-style outgoing money, errors. NOT vivid #FF0000."
+      },
+      "warning": {
+        "value": "#B8924A",
+        "role": "Same as gold."
+      }
+    },
+    "dark": {
+      "background": {
+        "value": "#0F1419"
+      },
+      "surface": {
+        "value": "#1A2028"
+      },
+      "surface_subtle": {
+        "value": "#232B36"
+      },
+      "text_primary": {
+        "value": "#F5F1EA"
+      },
+      "text_secondary": {
+        "value": "#A8B0BC"
+      },
+      "text_muted": {
+        "value": "#6B7480"
+      },
+      "border": {
+        "value": "#2A3441"
+      },
+      "border_strong": {
+        "value": "#3A4451"
+      },
+      "accent_sage": {
+        "value": "#7A9B78"
+      },
+      "accent_gold": {
+        "value": "#C9A363"
+      }
+    },
+    "rules": [
+      "Cream + navy + sage is the signature triad. Avoid bright blues (#0066CC, #2563EB) \u2014 those are 1990s-bank blue, the trope Mercury rejected",
+      "Sage is the PRIMARY accent. Gold is reserved for premium tier indicators / occasional flourishes",
+      "Money color rules: incoming = sage. Outgoing = neutral text (don't paint it red unless it's an error). Errors = muted terracotta",
+      "Never use the green/red flashing-light treatment some fintech uses for transaction logs. Numbers stay text_primary; the sign + or - carries direction"
+    ]
+  },
+  "typography": {
+    "fonts": {
+      "display": {
+        "family": "S\u00f6hne, Tiempos Headline, Playfair Display, Georgia, serif",
+        "google_font": "Playfair Display",
+        "weights": [
+          500,
+          600
+        ],
+        "use_for": [
+          "h1",
+          "h2"
+        ],
+        "letter_spacing": "-0.02em",
+        "rule": "Mercury uses S\u00f6hne. Brex uses serifs in marketing. Pick serif for marketing surfaces (premium); pick sans for product UI (legibility)."
+      },
+      "display_alt_sans": {
+        "family": "S\u00f6hne, Inter, -apple-system, system-ui, sans-serif",
+        "google_font": "Inter",
+        "weights": [
+          500,
+          600,
+          700
+        ],
+        "use_for": [
+          "Use INSTEAD of display serif when building product UI (dashboards, app screens)"
+        ],
+        "letter_spacing": "-0.025em"
+      },
+      "body": {
+        "family": "S\u00f6hne, Inter, -apple-system, system-ui, sans-serif",
+        "google_font": "Inter",
+        "weights": [
+          400,
+          500,
+          600
+        ],
+        "use_for": [
+          "body text",
+          "labels",
+          "buttons"
+        ],
+        "letter_spacing": "-0.01em"
+      },
+      "mono": {
+        "family": "S\u00f6hne Mono, JetBrains Mono, ui-monospace, monospace",
+        "google_font": "JetBrains Mono",
+        "weights": [
+          400,
+          500
+        ],
+        "use_for": [
+          "account numbers",
+          "routing numbers",
+          "amounts in tables",
+          "transaction IDs"
+        ]
+      }
+    },
+    "scale": {
+      "base_px": 15,
+      "ratio": 1.22,
+      "sizes": {
+        "xs": 12,
+        "sm": 13,
+        "base": 15,
+        "md": 16,
+        "lg": 18,
+        "xl": 22,
+        "2xl": 28,
+        "3xl": 36,
+        "4xl": 48,
+        "5xl": 64
+      }
+    },
+    "rules": [
+      "Marketing: serif display for headlines, sans for body (editorial-feel)",
+      "Product UI: sans throughout (legibility for financial data)",
+      "Tabular numbers MANDATORY on any money column or financial table",
+      "Base 15px (between editorial-premium's 16 and linear-product's 14) \u2014 confident readability"
+    ]
+  },
+  "spacing": {
+    "base_px": 4,
+    "scale": [
+      0,
+      4,
+      8,
+      12,
+      16,
+      20,
+      24,
+      32,
+      40,
+      56,
+      80,
+      112,
+      144
+    ],
+    "rules": [
+      "Marketing pages: 80-112px section gutters",
+      "Product UI: 24-32px section gutters"
+    ]
+  },
+  "radius": {
+    "scale": {
+      "none": 0,
+      "sm": 4,
+      "md": 8,
+      "lg": 12,
+      "xl": 16,
+      "full": 9999
+    },
+    "rules": [
+      "Default radius: md (8px). Slightly more rounded than vercel-dev / linear-product to signal warmth without going playful",
+      "Cards: lg (12px). Modals: xl (16px)",
+      "Never pills on rectangular buttons. Account-balance cards may use lg radius for tactile feel"
+    ]
+  },
+  "elevation": {
+    "rules": [
+      "Cards in marketing: subtle 1px border in cream-tone OR soft shadow (not both)",
+      "Cards in product: 1px border only (data clarity beats softness)",
+      "Modal shadow: 0 1px 2px rgba(15,20,25,0.04), 0 8px 24px rgba(15,20,25,0.08)"
+    ]
+  },
+  "components": {
+    "button_primary": {
+      "background": "accent_sage",
+      "color": "background",
+      "border": "none",
+      "radius": "md",
+      "padding": "12px 20px",
+      "font": "body weight 500",
+      "hover": "brightness 0.95"
+    },
+    "button_secondary": {
+      "background": "transparent",
+      "color": "text_primary",
+      "border": "1px solid border_strong",
+      "radius": "md",
+      "padding": "12px 20px",
+      "hover": "background surface_subtle"
+    },
+    "money_display": {
+      "font": "mono weight 500",
+      "color": "text_primary",
+      "size": "varies by context \u2014 large for hero, base for tables",
+      "rule": "Money goes in mono. Positive amounts may use accent_sage for the integer dollar portion ONLY if the design emphasises positive flow (e.g. a 'received' inbox). Default is text_primary."
+    },
+    "account_card": {
+      "background": "surface",
+      "border": "1px solid border",
+      "radius": "lg",
+      "padding": "24px",
+      "shadow": "none",
+      "rule": "Account name in body weight 500. Balance below in mono, larger size, text_primary. NEVER huge green-glowing money."
+    }
+  },
+  "layout_patterns": {
+    "marketing_hero": {
+      "pattern": "split-statement-with-product-shot",
+      "structure": "Left: serif headline + restrained subhead + ONE sage CTA. Right: real product UI screenshot. No floating coins, no abstract finance imagery.",
+      "do": [
+        "Single confident statement, not a list of features",
+        "Subtle navy section below hero with stat cards in cream-on-navy"
+      ],
+      "dont": [
+        "Stock photos of 'business people shaking hands'",
+        "Floating cards with mock transaction data tilted at fancy angles",
+        "Hero gradients of any kind"
+      ]
+    },
+    "product_dashboard": {
+      "pattern": "sidebar-content-with-account-list",
+      "structure": "Sidebar with account list (each with mono balance). Main: transaction table with date | description | amount columns, amount right-aligned in mono.",
+      "do": [
+        "Mono for ALL money",
+        "Tiny status badges for transaction state (cleared, pending)",
+        "Clean separators between days in tx list"
+      ],
+      "dont": [
+        "Stat cards in vibrant colors",
+        "Charts as the main thing \u2014 let the table dominate"
+      ]
+    }
+  },
+  "animations": {
+    "library": "gsap for dashboard state transitions",
+    "philosophy": "Tasteful, deliberate. Money movements need to feel solid, not flashy.",
+    "patterns": {
+      "balance_update": "Number tween from old to new value, 400ms ease-out. NO celebratory color flash.",
+      "transaction_arrival": "New row fades in from top, 300ms. The list scrolls smoothly to accommodate.",
+      "page_transition": "200ms cross-fade on navigation."
+    },
+    "anti_patterns": [
+      "green flash on incoming money (gimmicky)",
+      "particle effects on transactions",
+      "confetti on milestones \u2014 cheapens the premium feel"
+    ]
+  },
+  "tailwind_config_snippet": {
+    "theme": {
+      "extend": {
+        "colors": {
+          "bg": "#F5F1EA",
+          "surface": "#FFFFFF",
+          "surface-subtle": "#EFEAE0",
+          "surface-navy": "#0F1419",
+          "text": "#0F1419",
+          "text-secondary": "#4A5560",
+          "text-muted": "#8B95A1",
+          "text-on-navy": "#F5F1EA",
+          "border": "#DCD5C6",
+          "accent-sage": "#5C7C5A",
+          "accent-gold": "#B8924A",
+          "danger": "#A0473D"
+        },
+        "fontFamily": {
+          "display": [
+            "Playfair Display",
+            "S\u00f6hne",
+            "Tiempos Headline",
+            "Georgia",
+            "serif"
+          ],
+          "display-sans": [
+            "S\u00f6hne",
+            "Inter",
+            "system-ui",
+            "sans-serif"
+          ],
+          "body": [
+            "S\u00f6hne",
+            "Inter",
+            "system-ui",
+            "sans-serif"
+          ],
+          "mono": [
+            "JetBrains Mono",
+            "S\u00f6hne Mono",
+            "ui-monospace",
+            "monospace"
+          ]
+        }
+      }
+    }
+  }
+}

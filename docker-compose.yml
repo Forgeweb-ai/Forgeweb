@@ -1,0 +1,201 @@
+services:
+  traefik:
+    image: traefik:v3.0
+    container_name: forge-traefik
+    restart: unless-stopped
+    command:
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=forge-net
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --log.level=INFO
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"   # Traefik dashboard (internal only in prod)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik:/etc/traefik
+      - traefik-certs:/certs
+    networks:
+      - forge-net
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: forge-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: forge
+      POSTGRES_USER: forge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-forgedev}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - forge-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forge"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  opencode:
+    image: node:20-alpine
+    container_name: forge-opencode
+    restart: unless-stopped
+    working_dir: /opencode
+    # Install opencode + python3 (ui-ux-pro-max skill's reasoning engine needs
+    # python3 to run scripts/search.py for the design-system generator).
+    command: sh -c "apk add --no-cache python3 py3-pip && npm install -g opencode-ai@latest && opencode serve --port 7777 --hostname 0.0.0.0"
+    volumes:
+      # Use ${FORGE_DATA_ROOT:-./forge-data}. On macOS the bare `/forge-data`
+      # path is not in Docker Desktop's shared-paths list, so the mount is
+      # denied; the relative default resolves to ./forge-data (next to this
+      # file) which IS shared via /Users. In prod, set FORGE_DATA_ROOT=/forge-data.
+      - ${FORGE_DATA_ROOT:-./forge-data}:/forge-data
+      # Shared platform skills — single source of truth for every project's
+      # opencode session. Read-only so a runaway agent can't mutate them.
+      # Picked up automatically because the global opencode.json below sets
+      # skills.paths = ["/forge-skills"].
+      - ./forge-server/forge_server/skills:/forge-skills:ro
+      # Platform-level opencode config (skills.paths, subagent definitions,
+      # global instructions). Lives in opencode's xdgConfig directory, which
+      # is /root/.config/opencode inside the container. Loaded BEFORE any
+      # per-project .opencode/opencode.json, so every project inherits it.
+      # See: opencode/packages/core/src/global.ts (xdgConfig + "opencode")
+      - ./forge-opencode-config:/root/.config/opencode:ro
+    networks:
+      - forge-net
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # Moonshot + Google keys are referenced by opencode.json via {env:...}.
+      # Without these the @ai-sdk/google and @ai-sdk/openai-compatible packages
+      # silently get an empty apiKey and 401 on every call.
+      - MOONSHOT_API_KEY=${MOONSHOT_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      # Route Anthropic traffic through the logging proxy. opencode also has
+      # this baked into its global config (providers.anthropic.options.baseURL)
+      # but the env var is a belt-and-braces fallback the SDK respects.
+      - ANTHROPIC_BASE_URL=http://forge-llm-proxy:7799
+    depends_on:
+      - forge-llm-proxy
+    # NOT exposed to internet — only forge-be communicates with it
+
+  forge-server:
+    build:
+      context: ./forge-server
+      dockerfile: Dockerfile
+    container_name: forge-server
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://forge:${POSTGRES_PASSWORD:-forgedev}@postgres:5432/forge
+      - OPENCODE_URL=http://opencode:7777
+      - FORGE_DATA_ROOT=/forge-data
+      # Traefik routes *.${PREVIEW_DOMAIN} to project containers via Docker labels.
+      # Local: preview.lvh.me (wildcard-resolves to 127.0.0.1, no DNS setup).
+      # Prod:  preview.forge.com (real wildcard DNS).
+      - PREVIEW_DOMAIN=${PREVIEW_DOMAIN:-preview.lvh.me}
+      - PREVIEW_SCHEME=${PREVIEW_SCHEME:-http}
+      - DOCKER_NETWORK=forge-net
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - REDIS_URL=redis://redis:6379/0
+      # Sleep settings
+      - SLEEP_CHECK_INTERVAL=60
+      - IDLE_TTL=600
+    volumes:
+      - ${FORGE_DATA_ROOT:-./forge-data}:/forge-data
+      - /var/run/docker.sock:/var/run/docker.sock   # manages project containers
+    networks:
+      - forge-net
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.forge-server.rule=Host(`${API_DOMAIN:-api.forge.localhost}`)
+      - traefik.http.routers.forge-server.entrypoints=web
+      - traefik.http.services.forge-server.loadbalancer.server.port=8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      opencode:
+        condition: service_started
+
+  redis:
+    image: redis:7-alpine
+    container_name: forge-redis
+    restart: unless-stopped
+    networks:
+      - forge-net
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Logging proxy between opencode and Anthropic. Every /v1/messages call lands
+  # here first; we log request + response, then forward to api.anthropic.com.
+  # Lets us verify subagent invocations (e.g. design-analyst) and inspect what
+  # prompts opencode is actually sending. opencode's provider config below
+  # sets baseURL to point here.
+  forge-llm-proxy:
+    build:
+      context: ./forge-llm-proxy
+      dockerfile: Dockerfile
+    container_name: forge-llm-proxy
+    restart: unless-stopped
+    environment:
+      - ANTHROPIC_UPSTREAM=https://api.anthropic.com
+      - FORGE_LLM_PROXY_LOG_DIR=/logs
+      - FORGE_QA_PATH=/forge-qa
+      - PORT=7799
+    volumes:
+      # Logs visible on the host at ./forge-llm-proxy-logs/
+      - ./forge-llm-proxy-logs:/logs
+      # Rate card + cost computer — same files the harness and dashboard read.
+      # Read-only; the proxy is not allowed to mutate pricing data.
+      - ./forge-qa:/forge-qa:ro
+    networks:
+      - forge-net
+    # NOT exposed to internet — opencode talks to it on the internal network
+
+  forge-fe:
+    build:
+      context: ./forge-ui-new
+      dockerfile: Dockerfile
+    container_name: forge-fe
+    restart: unless-stopped
+    environment:
+      - VITE_API_URL=${API_URL:-http://api.forge.localhost}
+      - VITE_PREVIEW_DOMAIN=${PREVIEW_DOMAIN:-preview.forge.localhost}
+      - VITE_OPENCODE_URL=${OPENCODE_URL:-http://opencode:7777}
+    networks:
+      - forge-net
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.forge-fe.rule=Host(`${APP_DOMAIN:-app.forge.localhost}`)
+      - traefik.http.routers.forge-fe.entrypoints=web
+      - traefik.http.services.forge-fe.loadbalancer.server.port=3000
+    depends_on:
+      - forge-server
+
+networks:
+  forge-net:
+    name: forge-net
+    # external: true → use the existing network instead of compose trying to
+    # (re)create one with managed labels. The network was first created
+    # outside compose (likely a prior dev.sh run), so compose refuses to
+    # reconcile labels and prints the "incorrect label" warning. Marking it
+    # external silences the warning AND avoids reshuffling running services.
+    external: true
+
+volumes:
+  postgres-data:
+  redis-data:
+  traefik-certs:

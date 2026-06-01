@@ -1,0 +1,27 @@
+[data-component="spinner"] {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  border-color: #FF3D00 #FF3D00 transparent transparent;
+  position: relative;
+  animation: forge-spinner-rotate 1s linear infinite;
+}
+
+[data-component="spinner"]::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -125%);
+  width: 30%;
+  height: 30%;
+  background: #FF3D00;
+  border-radius: 50%;
+}
+
+@keyframes forge-spinner-rotate {
+  100% { transform: rotate(360deg); }
+}

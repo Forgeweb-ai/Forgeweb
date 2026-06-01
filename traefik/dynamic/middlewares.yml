@@ -1,0 +1,33 @@
+# Traefik dynamic config — middlewares reloaded without restart
+
+http:
+  middlewares:
+    # CORS for API
+    cors-api:
+      headers:
+        accessControlAllowOriginList:
+          - "*"
+        accessControlAllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+          - PATCH
+        accessControlAllowHeaders:
+          - Content-Type
+          - Authorization
+        accessControlMaxAge: 3600
+
+    # Strip /api prefix if needed
+    strip-api-prefix:
+      stripPrefix:
+        prefixes:
+          - "/api"
+
+    # Security headers for project preview containers
+    preview-security:
+      headers:
+        frameDeny: false         # Allow iframe embedding in Forge UI
+        contentTypeNosniff: true
+        browserXssFilter: true
