@@ -12,6 +12,13 @@ export type RetryReason = "free_tier_limit" | "account_rate_limit" | (string & {
 
 export type Retryable = {
   message: string
+  // Hard cap on retry attempts for THIS class of error. Undefined = use the
+  // default policy (retry while the error keeps classifying as retryable —
+  // appropriate for rate limits, which self-resolve when the window resets).
+  // Set for failures that would otherwise loop unboundedly, e.g. a stalled
+  // stream: a wedged provider would never start responding, so retrying past
+  // a small cap just burns the user's BYOK tokens.
+  maxAttempts?: number
   action?: {
     reason: RetryReason
     provider: string
@@ -26,6 +33,15 @@ export const RETRY_INITIAL_DELAY = 2000
 export const RETRY_BACKOFF_FACTOR = 2
 export const RETRY_MAX_DELAY_NO_HEADERS = 30_000 // 30 seconds
 export const RETRY_MAX_DELAY = 2_147_483_647 // max 32-bit signed integer for setTimeout
+
+// Max auto-retries for a stalled stream (provider stopped producing output).
+// Bounded because, unlike a rate limit, a stall has no "reset" — each retry is
+// a full fresh generation billed to the user's own key. Tunable via env so ops
+// can dial it without a redeploy. See processor.ts for the stall detector.
+export const STREAM_STALL_MAX_RETRIES = (() => {
+  const raw = Number.parseInt(process.env["FORGE_STREAM_STALL_MAX_RETRIES"] ?? "", 10)
+  return Number.isInteger(raw) && raw >= 0 ? raw : 3
+})()
 
 function cap(ms: number) {
   return Math.min(ms, RETRY_MAX_DELAY)
@@ -69,6 +85,12 @@ export function retryable(error: Err, provider: string) {
   if (MessageV2.ContextOverflowError.isInstance(error)) return undefined
   if (MessageV2.APIError.isInstance(error)) {
     const status = error.data.statusCode
+    // Stalled stream (no provider output within the idle window). Retryable,
+    // but capped — a wedged provider won't recover on its own and each retry
+    // re-bills the user's key. See STREAM_STALL_MAX_RETRIES / processor.ts.
+    if (error.data.metadata?.["stalled"] === "true") {
+      return { message: error.data.message || "Model stopped responding", maxAttempts: STREAM_STALL_MAX_RETRIES }
+    }
     // 5xx errors are transient server failures and should always be retried,
     // even when the provider SDK doesn't explicitly mark them as retryable.
     if (!error.data.isRetryable && !(status !== undefined && status >= 500)) return undefined
@@ -182,6 +204,10 @@ export function policy(opts: {
       const error = opts.parse(meta.input)
       const retry = retryable(error, opts.provider)
       if (!retry) return Cause.done(meta.attempt)
+      // Per-error attempt cap. meta.attempt is 1 on the first retry and
+      // increments each retry, so `attempt > maxAttempts` stops after exactly
+      // maxAttempts retries (e.g. maxAttempts=3 retries on attempts 1,2,3).
+      if (retry.maxAttempts !== undefined && meta.attempt > retry.maxAttempts) return Cause.done(meta.attempt)
       return Effect.gen(function* () {
         const wait = delay(meta.attempt, MessageV2.APIError.isInstance(error) ? error : undefined)
         const now = yield* Clock.currentTimeMillis

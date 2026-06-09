@@ -75,6 +75,117 @@ const withHome = <A, E, R>(home: string, self: Effect.Effect<A, E, R>) =>
   )
 
 describe("skill", () => {
+  it.live("skills.protected_paths prevents shadowing of platform skills", () =>
+    provideTmpdirInstance(
+      (dir) =>
+        Effect.gen(function* () {
+          // Two skills with the SAME name but in two different paths.
+          //   - protected/  → declared in skills.protected_paths
+          //   - user-supplied via the default .opencode/skill/ scan
+          // Expected: the protected skill wins, the duplicate is dropped.
+          const protectedDir = path.join(dir, "platform-skills")
+          yield* Effect.promise(() =>
+            Bun.write(
+              path.join(protectedDir, "shared-skill", "SKILL.md"),
+              `---
+name: shared-skill
+description: Platform-managed version (must win).
+---
+# Platform
+`,
+            ),
+          )
+          yield* Effect.promise(() =>
+            Bun.write(
+              path.join(dir, ".opencode", "skill", "shared-skill", "SKILL.md"),
+              `---
+name: shared-skill
+description: User attempt to shadow the platform skill (must lose).
+---
+# User
+`,
+            ),
+          )
+
+          // opencode.json declares the platform path as both a scan path and
+          // a protected path. Writing it AFTER tmpdir creation is fine: the
+          // Config service reads opencode.json at first access.
+          yield* Effect.promise(() =>
+            fs.writeFile(
+              path.join(dir, "opencode.json"),
+              JSON.stringify({
+                $schema: "https://opencode.ai/config.json",
+                skills: {
+                  paths: [protectedDir],
+                  protected_paths: [protectedDir],
+                },
+              }),
+            ),
+          )
+
+          const skill = yield* Skill.Service
+          const found = (yield* skill.all()).find((s) => s.name === "shared-skill")
+          expect(found).toBeDefined()
+          // Description proves which copy won — must be the platform one.
+          expect(found!.description).toBe("Platform-managed version (must win).")
+          expect(found!.location).toContain(path.join("platform-skills", "shared-skill", "SKILL.md"))
+        }),
+      { git: true },
+    ),
+  )
+
+  it.live("non-protected duplicate is overwritten (existing behavior unchanged)", () =>
+    provideTmpdirInstance(
+      (dir) =>
+        Effect.gen(function* () {
+          // No protected_paths configured → last-write-wins behavior must
+          // hold. Use two non-protected dirs both registered as scan paths.
+          const dirA = path.join(dir, "skills-a")
+          const dirB = path.join(dir, "skills-b")
+          yield* Effect.promise(() =>
+            Bun.write(
+              path.join(dirA, "dup", "SKILL.md"),
+              `---
+name: dup
+description: From A.
+---
+# A
+`,
+            ),
+          )
+          yield* Effect.promise(() =>
+            Bun.write(
+              path.join(dirB, "dup", "SKILL.md"),
+              `---
+name: dup
+description: From B.
+---
+# B
+`,
+            ),
+          )
+          yield* Effect.promise(() =>
+            fs.writeFile(
+              path.join(dir, "opencode.json"),
+              JSON.stringify({
+                $schema: "https://opencode.ai/config.json",
+                skills: { paths: [dirA, dirB] },
+              }),
+            ),
+          )
+
+          const skill = yield* Skill.Service
+          const found = (yield* skill.all()).find((s) => s.name === "dup")
+          expect(found).toBeDefined()
+          // Either A or B could win depending on scan order, but the
+          // crucial assertion is that protected_paths absence doesn't
+          // accidentally start protecting things.
+          expect(["From A.", "From B."]).toContain(found!.description!)
+        }),
+      { git: true },
+    ),
+  )
+
   it.live("discovers skills from .opencode/skill/ directory", () =>
     provideTmpdirInstance(
       (dir) =>

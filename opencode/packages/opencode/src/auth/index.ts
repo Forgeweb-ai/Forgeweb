@@ -8,6 +8,34 @@ export const OAUTH_DUMMY_KEY = "opencode-oauth-dummy-key"
 
 const file = path.join(Global.Path.data, "auth.json")
 
+/**
+ * Request-scoped key override. Populated by the forge-auth router middleware
+ * from the `X-Forge-Auth` header so the shared opencode process can serve many
+ * users without leaking keys through the on-disk auth.json. When set, entries
+ * here win over both auth.json and OPENCODE_AUTH_CONTENT for the duration of
+ * the current Effect (i.e. one HTTP request).
+ *
+ * Default is an empty record so behaviour outside HTTP request scope (CLI,
+ * tests, non-Forge deployments) is unchanged.
+ */
+export const Override = Context.Reference<Record<string, unknown>>(
+  "@opencode/Auth/Override",
+  { defaultValue: () => ({}) },
+)
+
+/**
+ * Signals that this request originated from Forge's per-user proxy. When true,
+ * provider key resolution becomes per-user only: process env vars and the
+ * `apiKey` field on config providers are ignored, so brand-new users never
+ * inherit platform-level credentials. The proxy sets the `X-Forge-Auth`
+ * header on every Forge call (even with an empty key map), which the
+ * forge-auth middleware uses to flip this flag.
+ */
+export const ForgeMode = Context.Reference<boolean>(
+  "@opencode/Auth/ForgeMode",
+  { defaultValue: () => false },
+)
+
 const fail = (message: string) => (cause: unknown) => new AuthError({ message, cause })
 
 export class Oauth extends Schema.Class<Oauth>("OAuth")({
@@ -55,14 +83,29 @@ export const layer = Layer.effect(
     const decode = Schema.decodeUnknownOption(Info)
 
     const all = Effect.fn("Auth.all")(function* () {
+      // Request-scoped override + ForgeMode flag from the forge-auth middleware.
+      // In ForgeMode, the override is the *only* source of truth — disk
+      // auth.json and OPENCODE_AUTH_CONTENT are ignored even when override is
+      // empty. Otherwise an old auth.json entry from a previous tenant would
+      // still be reported as a connected provider for a brand-new Forge user.
+      const override = yield* Override
+      const forgeMode = yield* ForgeMode
+      const overrideDecoded = Record.filterMap(override, (value) =>
+        Result.fromOption(decode(value), () => undefined),
+      )
+
+      if (forgeMode) return overrideDecoded
+
       if (process.env.OPENCODE_AUTH_CONTENT) {
         try {
-          return JSON.parse(process.env.OPENCODE_AUTH_CONTENT)
+          const env = JSON.parse(process.env.OPENCODE_AUTH_CONTENT) as Record<string, Info>
+          return { ...env, ...overrideDecoded }
         } catch (err) {}
       }
 
       const data = (yield* fsys.readJson(file).pipe(Effect.orElseSucceed(() => ({})))) as Record<string, unknown>
-      return Record.filterMap(data, (value) => Result.fromOption(decode(value), () => undefined))
+      const diskDecoded = Record.filterMap(data, (value) => Result.fromOption(decode(value), () => undefined))
+      return { ...diskDecoded, ...overrideDecoded }
     })
 
     const get = Effect.fn("Auth.get")(function* (providerID: string) {

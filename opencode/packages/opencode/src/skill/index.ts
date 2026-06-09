@@ -25,14 +25,19 @@ const EXTERNAL_SKILL_PATTERN = "skills/**/SKILL.md"
 const OPENCODE_SKILL_PATTERN = "{skill,skills}/**/SKILL.md"
 const SKILL_PATTERN = "**/SKILL.md"
 
-// Built-in skill that ships with opencode. The model's intuition for what an
-// opencode.json should look like is often wrong, and opencode hard-fails on
-// invalid config, so users hit cryptic startup errors. Loading this skill
-// when the model is asked to touch opencode's own config files gives it the
-// actual schemas instead of guesses.
-const CUSTOMIZE_OPENCODE_SKILL_NAME = "customize-opencode"
+// Built-in skill (Forge fork: renamed from "customize-opencode" — the
+// original name leaked the upstream runtime brand into any chat surface
+// that rendered the skill name verbatim, violating the IDENTITY GUARDRAIL
+// in forge-opencode-config/AGENTS.md). The skill's BODY still describes
+// opencode-config schema because the runtime IS opencode under the hood —
+// but the name and description shown to users (and to the model when it
+// decides whether to invoke) carry no brand leak. The trigger description
+// is also rewritten to be tighter — Forge users almost never touch runtime
+// config directly, so this skill should rarely (ideally never) fire for
+// app-building requests.
+const CUSTOMIZE_OPENCODE_SKILL_NAME = "platform-config"
 const CUSTOMIZE_OPENCODE_SKILL_DESCRIPTION =
-  "Use ONLY when the user is editing or creating opencode's own configuration: opencode.json, opencode.jsonc, files under .opencode/, or files under ~/.config/opencode/. Also use when creating or fixing opencode agents, subagents, skills, plugins, MCP servers, or permission rules. Do not use for the user's own application code, or for any project that is not configuring opencode itself."
+  "Use ONLY when the user is directly editing the runtime's own configuration files (e.g. files named opencode.json, opencode.jsonc, or paths under .opencode/ or ~/.config/opencode/), or creating new platform agents/subagents/skills/plugins/MCP servers/permission rules. Do NOT use for the user's own application code, scaffolding a new app, creating a database, building UI, or any normal feature work — those are not platform config."
 
 const UI_UX_PRO_MAX_SKILL_NAME = "ui-ux-pro-max"
 const UI_UX_PRO_MAX_SKILL_DESCRIPTION =
@@ -86,6 +91,11 @@ export class NotFoundError extends Schema.TaggedErrorClass<NotFoundError>()("Ski
 type State = {
   skills: Record<string, Info>
   dirs: Set<string>
+  // Names of skills loaded from a path declared in `skills.protected_paths`.
+  // A later-discovered skill with the same name is skipped, not overwritten.
+  // See ConfigSkills.protected_paths for rationale.
+  protectedNames: Set<string>
+  protectedPaths: string[]
 }
 
 type DiscoveryState = {
@@ -104,6 +114,25 @@ export interface Interface {
   readonly all: () => Effect.Effect<Info[]>
   readonly dirs: () => Effect.Effect<string[]>
   readonly available: (agent?: Agent.Info) => Effect.Effect<Info[]>
+}
+
+// Path-prefix check: returns true iff `child` is exactly `parent` or sits under
+// it. Compared with separators to avoid `/forge-skills` falsely matching
+// `/forge-skills-backup/...`. Normalize once with path.resolve so callers can
+// pass mixed absolute/relative or trailing-slash variants.
+function isUnderPath(child: string, parent: string) {
+  const c = path.resolve(child)
+  const p = path.resolve(parent)
+  if (c === p) return true
+  return c.startsWith(p + path.sep)
+}
+
+function isProtectedLocation(location: string, protectedPaths: string[]) {
+  if (protectedPaths.length === 0) return false
+  for (const root of protectedPaths) {
+    if (isUnderPath(location, root)) return true
+  }
+  return false
 }
 
 const add = Effect.fnUntraced(function* (state: State, match: string, bus: Bus.Interface) {
@@ -128,21 +157,38 @@ const add = Effect.fnUntraced(function* (state: State, match: string, bus: Bus.I
 
   if (!isSkillFrontmatter(md.data)) return
 
-  if (state.skills[md.data.name]) {
+  const name = md.data.name
+  const incomingIsProtected = isProtectedLocation(match, state.protectedPaths)
+
+  if (state.skills[name]) {
+    // Refuse to overwrite a skill that came from a protected path. The
+    // hosting platform (e.g. Forge) needs its skill registry to be
+    // tamper-proof from user-supplied skills sharing a name. Log loudly so
+    // the user notices their skill was ignored.
+    if (state.protectedNames.has(name)) {
+      log.warn("ignored skill (name collides with protected skill)", {
+        name,
+        protected: state.skills[name].location,
+        ignored: match,
+      })
+      return
+    }
     log.warn("duplicate skill name", {
-      name: md.data.name,
-      existing: state.skills[md.data.name].location,
+      name,
+      existing: state.skills[name].location,
       duplicate: match,
     })
   }
 
   state.dirs.add(path.dirname(match))
-  state.skills[md.data.name] = {
-    name: md.data.name,
+  state.skills[name] = {
+    name,
     description: md.data.description,
     location: match,
     content: md.content,
   }
+  if (incomingIsProtected) state.protectedNames.add(name)
+  else state.protectedNames.delete(name)
 })
 
 const scan = Effect.fnUntraced(function* (
@@ -273,9 +319,21 @@ export const layer = Layer.effect(
     )
     const state = yield* InstanceState.make(
       Effect.fn("Skill.state")(function* () {
-        const s: State = { skills: {}, dirs: new Set() }
+        const cfg = yield* config.get()
+        // Resolve once at state init. `protected_paths` is small (a handful
+        // of platform-managed dirs) and stable for the life of the instance,
+        // so caching here avoids re-resolving on every `add()`.
+        const protectedPaths = (cfg.skills?.protected_paths ?? []).map((p) => path.resolve(p))
+        const s: State = {
+          skills: {},
+          dirs: new Set(),
+          protectedNames: new Set(),
+          protectedPaths,
+        }
         // Register the built-in skill BEFORE disk discovery so a user-disk
-        // skill with the same name can override it.
+        // skill with the same name can override it. Built-ins are NOT marked
+        // protected — that's a platform-host concern (set via
+        // skills.protected_paths in their config), not an opencode-core one.
         s.skills[CUSTOMIZE_OPENCODE_SKILL_NAME] = {
           name: CUSTOMIZE_OPENCODE_SKILL_NAME,
           description: CUSTOMIZE_OPENCODE_SKILL_DESCRIPTION,

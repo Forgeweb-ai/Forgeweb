@@ -60,6 +60,8 @@ import { ServerAuth } from "@/server/auth"
 import { InstanceHttpApi, RootHttpApi } from "./api"
 import { PublicApi } from "./public"
 import { authorizationLayer, authorizationRouterMiddleware, v2AuthorizationLayer } from "./middleware/authorization"
+import { forgeAuthLayer } from "./middleware/forge-auth"
+import { forgeUserLayer } from "./middleware/forge-user"
 import { EventApi } from "./groups/event"
 import { eventHandlers } from "./handlers/event"
 import { configHandlers } from "./handlers/config"
@@ -190,6 +192,8 @@ export function createRoutes(
       compressionLayer,
       corsVaryFix,
       fenceLayer,
+      forgeAuthLayer,
+      forgeUserLayer,
       cors(corsOptions),
       Account.defaultLayer,
       Agent.defaultLayer,

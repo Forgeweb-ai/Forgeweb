@@ -1,8 +1,10 @@
+import { Auth } from "@/auth"
 import { ProviderAuth } from "@/provider/auth"
 import { Config } from "@/config/config"
 import { ModelsDev } from "@opencode-ai/core/models-dev"
 import { Provider } from "@/provider/provider"
 import { ProviderID } from "@/provider/schema"
+import { resolveForgeCustomProviders } from "@/forge/custom-providers"
 import { mapValues } from "remeda"
 import { Effect, Schema } from "effect"
 import { HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
@@ -45,15 +47,60 @@ export const providerHandlers = HttpApiBuilder.group(InstanceHttpApi, "provider"
       for (const [key, value] of Object.entries(all)) {
         if ((enabled ? enabled.has(key) : true) && !disabled.has(key)) filtered[key] = value
       }
-      const connected = yield* provider.list()
+      const registered = yield* provider.list()
+
+      // Forge per-user custom providers, resolved from forge-server's
+      // user_settings.custom_providers + user_provider_keys. Returns the
+      // empty set for non-Forge requests, so the unconditional merge below
+      // is a no-op outside Forge mode and adds zero overhead.
+      //
+      // Why we merge into `registered` (config layer) and NOT into the
+      // ModelsDev catalog: custom providers are user-supplied configurations
+      // with full options/headers — they belong in the same merge bucket as
+      // the on-disk opencode.json providers. The mapValues→Object.assign
+      // chain below already gives `registered` precedence over ModelsDev
+      // entries, which is correct for our user-customs too.
+      const forgeCustom = yield* resolveForgeCustomProviders()
+      const forgeRegistered: Record<string, Provider.Info> = {}
+      for (const [pid, cfgEntry] of Object.entries(forgeCustom.providers)) {
+        // Don't overwrite a real opencode-registered provider with a user
+        // custom of the same id. Backend already rejects platform IDs, so
+        // this is purely belt-and-braces.
+        if (pid in registered) continue
+        forgeRegistered[pid] = Provider.fromForgeCustomProvider(
+          pid,
+          cfgEntry,
+          forgeCustom.keyed.has(pid),
+        )
+      }
+
       const providers = Object.assign(
         mapValues(filtered, (item) => Provider.fromModelsDevProvider(item)),
-        connected,
+        registered,
+        forgeRegistered,
       )
+
+      // In Forge BYOK mode, "connected" must mean "this user has a key
+      // resolved for this provider", not "this provider is defined in the
+      // platform config". Without this filter, config/custom providers from
+      // the shared forge-opencode-config/opencode.json appear connected for
+      // every user even though their apiKey has been stripped by the
+      // ForgeMode-aware provider build. User-customs carry a sentinel
+      // `key` set by fromForgeCustomProvider when forgeCustom.keyed has
+      // their id, so they classify correctly here.
+      const forgeMode = yield* Auth.ForgeMode
+      const allRegistered: Record<string, unknown> = { ...registered, ...forgeRegistered }
+      const connectedIds = forgeMode
+        ? Object.keys(allRegistered).filter((id) => {
+            const p = allRegistered[id] as { key?: unknown; options?: { apiKey?: unknown } } | undefined
+            return p?.key !== undefined || p?.options?.apiKey !== undefined
+          })
+        : Object.keys(allRegistered)
+
       return {
         all: Object.values(providers).map(Provider.toPublicInfo),
         default: Provider.defaultModelIDs(providers),
-        connected: Object.keys(connected),
+        connected: connectedIds,
       }
     })
 

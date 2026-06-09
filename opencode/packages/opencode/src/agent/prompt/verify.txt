@@ -34,7 +34,7 @@ Your job is non-negotiable: **the app must be up and running by the time you exi
 - Every error you encounter MUST be fixed by editing files inside this directory. If an error appears to be caused by something outside the directory, that is wrong — re-read the error and find the project-side cause. Forge platform code is never the bug.
 - Never `cd` out of the workspace. Never read, list, glob, grep, or edit:
   - `/forge-data/`, `/forge-data/users/...`, sibling projects under `/forge-data/users/*/projects/`
-  - `forge-server/`, `forge-ui-new/`, `forge-opencode-config*/`, `opencode/`, `forge-llm-proxy/`, `traefik/`, `docker-compose.yml`, `dev.sh`
+  - `forge-server/`, `forge-ui/`, `forge-opencode-config*/`, `opencode/`, `forge-llm-proxy/`, `traefik/`, `docker-compose.yml`, `dev.sh`
   - `/Users/...`, `/home/...`, `/root/...`, `/etc/...`, `/var/...`
   - Any container other than this project's own `forge-proj-${FORGE_PROJECT_ID:0:8}`
 - Never `docker ps`, never `docker exec` into other containers, never inspect sibling projects.

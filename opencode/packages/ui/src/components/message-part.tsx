@@ -832,6 +832,40 @@ export function registerPartComponent(type: string, component: PartComponent) {
   PART_MAPPING[type] = component
 }
 
+/**
+ * MessageHeader — shared name + avatar/mark + timestamp row above a message.
+ * `mark="forge"` renders the brand diamond; otherwise a circular initial avatar.
+ * Reuses existing primitives (plain divs + brand orange ramp) — no new icon assets.
+ */
+function MessageHeader(props: {
+  name: string
+  time?: string
+  mark: "forge" | { initial: string }
+  slot: "assistant-message-header" | "user-message-header"
+}) {
+  const isForge = () => props.mark === "forge"
+  return (
+    <div data-slot={props.slot}>
+      <Show
+        when={isForge()}
+        fallback={
+          <div data-slot="message-header-avatar">
+            {typeof props.mark === "object" ? props.mark.initial.slice(0, 1) : ""}
+          </div>
+        }
+      >
+        <div data-slot="message-header-mark" aria-hidden="true">
+          <div data-slot="message-header-mark-pip" />
+        </div>
+      </Show>
+      <span data-slot="message-header-name">{props.name}</span>
+      <Show when={props.time}>
+        <span data-slot="message-header-time">{props.time}</span>
+      </Show>
+    </div>
+  )
+}
+
 export function Message(props: MessageProps) {
   return (
     <Switch>
@@ -860,6 +894,7 @@ export function AssistantMessageDisplay(props: {
   showAssistantCopyPartID?: string | null
   showReasoningSummaries?: boolean
 }) {
+  const i18n = useI18n()
   const emptyTools: ToolPart[] = []
   const part = createMemo(() => index(props.parts))
   const grouped = createMemo(
@@ -876,57 +911,67 @@ export function AssistantMessageDisplay(props: {
     { equals: sameGroups },
   )
 
+  const timefmt = createMemo(() => new Intl.DateTimeFormat(i18n.locale(), { timeStyle: "short" }))
+  const stamp = createMemo(() => {
+    const created = props.message.time?.created
+    if (typeof created !== "number") return ""
+    return timefmt().format(created)
+  })
+
   return (
-    <Index each={grouped()}>
-      {(entryAccessor) => {
-        const entryType = createMemo(() => entryAccessor().type)
+    <div data-component="assistant-message">
+      <MessageHeader name="Forge" mark="forge" time={stamp()} slot="assistant-message-header" />
+      <Index each={grouped()}>
+        {(entryAccessor) => {
+          const entryType = createMemo(() => entryAccessor().type)
 
-        return (
-          <Switch>
-            <Match when={entryType() === "context"}>
-              {(() => {
-                const parts = createMemo(
-                  () => {
+          return (
+            <Switch>
+              <Match when={entryType() === "context"}>
+                {(() => {
+                  const parts = createMemo(
+                    () => {
+                      const entry = entryAccessor()
+                      if (entry.type !== "context") return emptyTools
+                      return entry.refs
+                        .map((ref) => part().get(ref.partID))
+                        .filter((part): part is ToolPart => !!part && isContextGroupTool(part))
+                    },
+                    emptyTools,
+                    { equals: same },
+                  )
+
+                  return (
+                    <Show when={parts().length > 0}>
+                      <ContextToolGroup parts={parts()} />
+                    </Show>
+                  )
+                })()}
+              </Match>
+              <Match when={entryType() === "part"}>
+                {(() => {
+                  const item = createMemo(() => {
                     const entry = entryAccessor()
-                    if (entry.type !== "context") return emptyTools
-                    return entry.refs
-                      .map((ref) => part().get(ref.partID))
-                      .filter((part): part is ToolPart => !!part && isContextGroupTool(part))
-                  },
-                  emptyTools,
-                  { equals: same },
-                )
+                    if (entry.type !== "part") return
+                    return part().get(entry.ref.partID)
+                  })
 
-                return (
-                  <Show when={parts().length > 0}>
-                    <ContextToolGroup parts={parts()} />
-                  </Show>
-                )
-              })()}
-            </Match>
-            <Match when={entryType() === "part"}>
-              {(() => {
-                const item = createMemo(() => {
-                  const entry = entryAccessor()
-                  if (entry.type !== "part") return
-                  return part().get(entry.ref.partID)
-                })
-
-                return (
-                  <Show when={item()}>
-                    <Part
-                      part={item()!}
-                      message={props.message}
-                      showAssistantCopyPartID={props.showAssistantCopyPartID}
-                    />
-                  </Show>
-                )
-              })()}
-            </Match>
-          </Switch>
-        )
-      }}
-    </Index>
+                  return (
+                    <Show when={item()}>
+                      <Part
+                        part={item()!}
+                        message={props.message}
+                        showAssistantCopyPartID={props.showAssistantCopyPartID}
+                      />
+                    </Show>
+                  )
+                })()}
+              </Match>
+            </Switch>
+          )
+        }}
+      </Index>
+    </div>
   )
 }
 
@@ -1111,6 +1156,9 @@ export function UserMessageDisplay(props: { message: UserMessage; parts: PartTyp
 
   return (
     <div data-component="user-message" data-timeline-part-id={textPart()?.id}>
+      {/* No header here — the consumer (forge-ui/message-timeline.tsx) renders
+          the user's avatar + timestamp above this component because the viewer's
+          identity (real initial) isn't available at the opencode library layer. */}
       <Show when={attachments().length > 0}>
         <div data-slot="user-message-attachments">
           <For each={attachments()}>
@@ -1445,6 +1493,122 @@ PART_MAPPING["compaction"] = function CompactionPartDisplay() {
   return <MessageDivider label={i18n.t("ui.messagePart.compaction")} />
 }
 
+/**
+ * BuildSummary — terracotta gradient "What I did" card.
+ * Rendered inline inside an assistant TextPart when the agent emits a
+ * sentinel fenced block:
+ *
+ *   ```forge:summary
+ *   { "agent": "Build", "model": "kimi-k2.6", "duration": "9m 2s",
+ *     "bullets": ["…", "…"], "summary": "…",
+ *     "changedFiles": { "count": 10, "added": 3086, "removed": 1212 } }
+ *   ```
+ *
+ * Lightweight by design: no SDK schema change, no new Part type. The agent
+ * prompt change to start emitting the block is a separate follow-up.
+ */
+type BuildSummaryPayload = {
+  agent?: string
+  model?: string
+  duration?: string
+  bullets?: string[]
+  summary?: string
+  changedFiles?: { count?: number; added?: number; removed?: number }
+}
+
+const BUILD_SUMMARY_FENCE = /```forge:summary\s*\n([\s\S]*?)\n```/
+
+function parseBuildSummary(text: string): { before: string; summary: BuildSummaryPayload | null; after: string } {
+  const match = text.match(BUILD_SUMMARY_FENCE)
+  if (!match || typeof match.index !== "number") return { before: text, summary: null, after: "" }
+  let payload: BuildSummaryPayload | null = null
+  try {
+    payload = JSON.parse(match[1]!) as BuildSummaryPayload
+  } catch {
+    return { before: text, summary: null, after: "" }
+  }
+  const before = text.slice(0, match.index).replace(/\s+$/, "")
+  const after = text.slice(match.index + match[0].length).replace(/^\s+/, "")
+  return { before, summary: payload, after }
+}
+
+/** Renders simple inline `code` spans inside a bullet body. */
+function renderBulletBody(body: string): JSX.Element[] {
+  const nodes: JSX.Element[] = []
+  const re = /`([^`]+)`/g
+  let last = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(body))) {
+    if (m.index > last) nodes.push(<span>{body.slice(last, m.index)}</span>)
+    nodes.push(<code>{m[1]}</code>)
+    last = m.index + m[0].length
+  }
+  if (last < body.length) nodes.push(<span>{body.slice(last)}</span>)
+  return nodes.length ? nodes : [<span>{body}</span>]
+}
+
+function BuildSummary(props: { payload: BuildSummaryPayload }) {
+  const hasPill = () => !!(props.payload.agent || props.payload.model || props.payload.duration)
+  const changed = () => props.payload.changedFiles
+  return (
+    <>
+      <div data-component="build-summary">
+        <Show when={hasPill()}>
+          <div data-slot="build-summary-pill">
+            <span data-slot="build-summary-pill-dot" aria-hidden="true" />
+            <Show when={props.payload.agent}>
+              <span>{props.payload.agent}</span>
+            </Show>
+            <Show when={props.payload.agent && props.payload.model}>
+              <span data-slot="build-summary-pill-sep">·</span>
+            </Show>
+            <Show when={props.payload.model}>
+              <span data-slot="build-summary-pill-mono">{props.payload.model}</span>
+            </Show>
+            <Show when={(props.payload.agent || props.payload.model) && props.payload.duration}>
+              <span data-slot="build-summary-pill-sep">·</span>
+            </Show>
+            <Show when={props.payload.duration}>
+              <span>{props.payload.duration}</span>
+            </Show>
+          </div>
+        </Show>
+        <div data-slot="build-summary-title">What I did</div>
+        <Show when={props.payload.bullets?.length}>
+          <ul data-slot="build-summary-list">
+            <For each={props.payload.bullets}>
+              {(bullet) => (
+                <li data-slot="build-summary-item">
+                  <span data-slot="build-summary-bullet" aria-hidden="true">
+                    ◆
+                  </span>
+                  <div data-slot="build-summary-item-body">{renderBulletBody(bullet)}</div>
+                </li>
+              )}
+            </For>
+          </ul>
+        </Show>
+        <Show when={props.payload.summary}>
+          <div data-slot="build-summary-divider">{props.payload.summary}</div>
+        </Show>
+      </div>
+      <Show when={changed()}>
+        <div data-slot="build-summary-diffstats">
+          <Show when={typeof changed()!.count === "number"}>
+            <span>{changed()!.count} Changed files </span>
+          </Show>
+          <Show when={typeof changed()!.added === "number"}>
+            <span data-slot="build-summary-diffstats-add">+{changed()!.added}</span>{" "}
+          </Show>
+          <Show when={typeof changed()!.removed === "number"}>
+            <span data-slot="build-summary-diffstats-del">-{changed()!.removed}</span>
+          </Show>
+        </div>
+      </Show>
+    </>
+  )
+}
+
 PART_MAPPING["text"] = function TextPartDisplay(props) {
   const data = useData()
   const i18n = useI18n()
@@ -1522,12 +1686,30 @@ PART_MAPPING["text"] = function TextPartDisplay(props) {
     }
   }
 
+  const parsed = createMemo(() => parseBuildSummary(text() || ""))
+
   return (
     <Show when={text()}>
       <div data-component="text-part" data-timeline-part-id={part().id}>
         <div data-slot="text-part-body">
-          <Show when={streaming()} fallback={<Markdown text={text()} cacheKey={part().id} streaming={false} />}>
-            <PacedMarkdown text={text()} cacheKey={part().id} streaming={streaming()} />
+          <Show when={parsed().before}>
+            <Show
+              when={streaming()}
+              fallback={<Markdown text={parsed().before} cacheKey={part().id + ":before"} streaming={false} />}
+            >
+              <PacedMarkdown text={parsed().before} cacheKey={part().id + ":before"} streaming={streaming()} />
+            </Show>
+          </Show>
+          <Show when={parsed().summary}>
+            <BuildSummary payload={parsed().summary!} />
+          </Show>
+          <Show when={parsed().after}>
+            <Show
+              when={streaming()}
+              fallback={<Markdown text={parsed().after} cacheKey={part().id + ":after"} streaming={false} />}
+            >
+              <PacedMarkdown text={parsed().after} cacheKey={part().id + ":after"} streaming={streaming()} />
+            </Show>
           </Show>
         </div>
         <Show when={showCopy()}>

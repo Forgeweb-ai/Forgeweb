@@ -15,6 +15,7 @@ import { TuiEvent } from "@/cli/cmd/tui/event"
 import { Cause, Effect, Exit, Option, Schema, Scope } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { resolveForgeAgentModel, SENTINEL_PROVIDER_ID } from "@/forge/agent-model"
 
 export interface TaskPromptOps {
   cancel(sessionID: SessionID): Effect.Effect<void>
@@ -171,7 +172,22 @@ export const TaskTool = Tool.define(
       const msg = yield* MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID }).pipe(Effect.orDie)
       if (msg.info.role !== "assistant") return yield* Effect.fail(new Error("Not an assistant message"))
 
-      const model = next.model ?? {
+      // Forge per-user agent-model resolver: agent.<name>.model in opencode.json
+      // may be the sentinel "__FORGE_USER_SETTING__" — parseModel(...) splits it
+      // into { providerID: "__FORGE_USER_SETTING__", modelID: "" }, which is
+      // what we detect here. We replace it with the user's saved choice
+      // (design_model etc.) at dispatch time so a setting change in the UI
+      // takes effect on the very next subagent invocation without restart.
+      //
+      // On any failure the resolver returns undefined and we fall through to
+      // the existing "parent message model" default — chosen so a flaky
+      // forge-server hiccup doesn't break the user's turn.
+      let resolvedNextModel = next.model
+      if (resolvedNextModel?.providerID === SENTINEL_PROVIDER_ID) {
+        const resolved = yield* resolveForgeAgentModel(next.name)
+        resolvedNextModel = resolved ?? undefined
+      }
+      const model = resolvedNextModel ?? {
         modelID: msg.info.modelID,
         providerID: msg.info.providerID,
       }

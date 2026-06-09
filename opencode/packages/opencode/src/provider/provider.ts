@@ -28,6 +28,7 @@ import * as ProviderTransform from "./transform"
 import { ModelID, ProviderID } from "./schema"
 import { ModelStatus } from "./model-status"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { resolveForgeCustomProviders } from "@/forge/custom-providers"
 
 const log = Log.create({ service: "provider" })
 
@@ -1155,6 +1156,99 @@ export function fromModelsDevProvider(provider: ModelsDev.Provider): Info {
   }
 }
 
+/**
+ * Forge: build a Provider.Info from a per-user custom-provider definition
+ * resolved from forge-server. Mirrors `fromModelsDevProvider` but takes the
+ * opencode-shaped FE payload (name/npm/options/models/headers) rather than
+ * a ModelsDev entry.
+ *
+ * `hasStoredKey` controls whether the resulting Info's `key` field is set to
+ * a sentinel — the `list` handler's Forge-mode "connected" filter checks
+ * `p.key !== undefined`, so providers the user has a stored key for must
+ * carry one here. The sentinel is non-secret; the real plaintext key flows
+ * through the X-Forge-Auth + Auth.Override path at request time.
+ *
+ * Defaults for missing model metadata are deliberately permissive
+ * (toolcall: true, status: "active", empty cost/limit). The user's dialog
+ * collects only id+name per model; we don't want to refuse to render a
+ * provider just because they didn't fill out token-limit fields.
+ */
+export function fromForgeCustomProvider(
+  providerID: string,
+  cfg: {
+    name?:    string
+    npm?:     string
+    options?: Record<string, unknown>
+    // Models arrive opaquely from forge-server — the dialog form collects
+    // {id, name} per entry but the wire shape is just unknown. We narrow
+    // at use-site inside this function rather than constraining callers.
+    models?:  Record<string, unknown>
+    headers?: Record<string, unknown>
+  },
+  hasStoredKey: boolean,
+): Info {
+  const pid     = ProviderID.make(providerID)
+  const npm     = cfg.npm ?? "@ai-sdk/openai-compatible"
+  const baseURL = cfg.options?.baseURL
+  const models: Record<string, Model> = {}
+  for (const [rawId, rawUnknown] of Object.entries(cfg.models ?? {})) {
+    const raw = (rawUnknown ?? {}) as { id?: string; name?: string }
+    const mid = ModelID.make(rawId)
+    models[rawId] = {
+      id:         mid,
+      providerID: pid,
+      name:       (typeof raw.name === "string" && raw.name) || rawId,
+      api:        {
+        id:  rawId,
+        url: typeof baseURL === "string" ? baseURL : "",
+        npm,
+      },
+      status:     "active",
+      headers:    {},
+      options:    {},
+      // Schema is { input, output, cache: { read, write } } — not flat
+      // cache_read/cache_write. See ProviderCost on line 900 and the
+      // `cost()` helper on line 1040 for the canonical shape. Mismatching
+      // it surfaces as `BadRequest: Missing key at ["cost"]["cache"]`
+      // when opencode tries to serialise the provider list.
+      cost:       { input: 0, output: 0, cache: { read: 0, write: 0 } },
+      limit:      { context: 0, input: 0, output: 0 },
+      capabilities: {
+        temperature: false,
+        reasoning:   false,
+        attachment:  false,
+        toolcall:    true,
+        input:  { text: true,  audio: false, image: false, video: false, pdf: false },
+        output: { text: true,  audio: false, image: false, video: false, pdf: false },
+        interleaved: false,
+      },
+      release_date: "",
+      variants: {},
+    }
+  }
+  const info: Info = {
+    id:      pid,
+    source:  "custom",
+    name:    cfg.name ?? providerID,
+    env:     [],
+    options: {
+      // Round-trip the user's options so opencode's request build (e.g.
+      // baseURL for the ai-sdk client) sees them. Headers go through the
+      // same `options` bag in Forge mode.
+      ...(cfg.options as Record<string, unknown> | undefined ?? {}),
+      ...(cfg.headers ? { headers: cfg.headers } : {}),
+    },
+    models,
+  }
+  if (hasStoredKey) {
+    // Sentinel — never the plaintext key. The plaintext arrives per-request
+    // via X-Forge-Auth and is consumed inside the request scope only. This
+    // value satisfies the `connected` filter without leaking secret data.
+    info.key = "__FORGE_BYOK__"
+  }
+  return info
+}
+
 function suggestionModelIDs(provider: Info | undefined, enableExperimentalModels: boolean) {
   if (!provider) return []
   return Object.keys(provider.models).filter((id) => {
@@ -1244,8 +1338,45 @@ export const layer = Layer.effect(
         // load plugins first so config() hook runs before reading cfg.provider
         const plugins = yield* plugin.list()
 
+        // Forge per-user custom providers: in Forge mode the surrounding
+        // InstanceState is rebuilt on every request (see the Auth.ForgeMode
+        // invalidate path in getState below), so resolving + merging here
+        // gives correct per-user behaviour without a separate cache.
+        //
+        // Why we merge into `cfg.provider` (not into `database`): the
+        // dispatch path (`provider.getModel`) walks `configProviders`
+        // through the loop at line ~1391 to build the in-memory model
+        // table that `getModel` later reads. The list-handler merge we
+        // wired earlier only surfaces customs to the UI; without merging
+        // here too, the user sees their custom kimi in the dropdown but
+        // sending a message returns NotFound and the FE shows no response.
+        // This closes that exact bug.
+        //
+        // Failure is total non-failure: resolveForgeCustomProviders returns
+        // an empty resolution for non-Forge requests and for any network /
+        // auth error, so the provider build is never broken by a forge-
+        // server hiccup.
+        const forgeCustom = yield* resolveForgeCustomProviders()
+        // Preserve the source type of cfg.provider so the loop downstream
+        // keeps its tight inference (`provider.models`, `provider.npm`,
+        // etc.). User-customs are shape-compatible with the opencode
+        // provider schema — the FE form collects the same fields — so we
+        // cast at the merge point rather than widen the whole map and
+        // break every property access in the existing loop.
+        type CfgProvider = NonNullable<typeof cfg.provider>
+        type CfgEntry    = CfgProvider[keyof CfgProvider]
+        const cfgProviderMerged: CfgProvider = { ...(cfg.provider ?? {}) } as CfgProvider
+        for (const [pid, customCfg] of Object.entries(forgeCustom.providers)) {
+          // Don't overwrite anything already present on disk — platform IDs
+          // are rejected by forge-server up front, so this is belt-and-
+          // braces against an unexpected key collision.
+          if (pid in cfgProviderMerged) continue
+          ;(cfgProviderMerged as Record<string, CfgEntry>)[pid] = customCfg as unknown as CfgEntry
+        }
+
         // now read config providers - includes any modifications from plugin config() hook
-        const configProviders = Object.entries(cfg.provider ?? {})
+        // AND any Forge per-user customs resolved above.
+        const configProviders = Object.entries(cfgProviderMerged)
         const disabled = new Set(cfg.disabled_providers ?? [])
         const enabled = cfg.enabled_providers ? new Set(cfg.enabled_providers) : null
 
@@ -1282,6 +1413,18 @@ export const layer = Layer.effect(
           })
         }
 
+        // Forge BYOK: when the X-Forge-Auth header is present the request is
+        // a per-user Forge call, so platform-level credentials (process env
+        // vars + apiKey on config providers) must NOT be auto-attached. The
+        // provider definitions themselves still load so the model picker
+        // works; only the secret material is suppressed.
+        const forgeMode = yield* Auth.ForgeMode
+        const stripPlatformKey = (opts: Record<string, unknown> | undefined) => {
+          if (!forgeMode || !opts) return opts
+          const { apiKey: _drop, ...rest } = opts as Record<string, unknown>
+          return rest
+        }
+
         // extend database from config
         for (const [providerID, provider] of configProviders) {
           const existing = database[providerID]
@@ -1289,7 +1432,9 @@ export const layer = Layer.effect(
             id: ProviderID.make(providerID),
             name: provider.name ?? existing?.name ?? providerID,
             env: provider.env ?? existing?.env ?? [],
-            options: mergeDeep(existing?.options ?? {}, provider.options ?? {}),
+            options: stripPlatformKey(
+              mergeDeep(existing?.options ?? {}, provider.options ?? {}),
+            ),
             source: "config",
             models: existing?.models ?? {},
           }
@@ -1376,17 +1521,21 @@ export const layer = Layer.effect(
           database[providerID] = parsed
         }
 
-        // load env
-        const envs = yield* env.all()
-        for (const [id, provider] of Object.entries(database)) {
-          const providerID = ProviderID.make(id)
-          if (disabled.has(providerID)) continue
-          const apiKey = provider.env.map((item) => envs[item]).find(Boolean)
-          if (!apiKey) continue
-          mergeProvider(providerID, {
-            source: "env",
-            key: provider.env.length === 1 ? apiKey : undefined,
-          })
+        // load env — skipped in Forge BYOK mode so platform-level env vars
+        // (ANTHROPIC_API_KEY etc. baked into the shared opencode container)
+        // never count as "connected" for a Forge user.
+        if (!forgeMode) {
+          const envs = yield* env.all()
+          for (const [id, provider] of Object.entries(database)) {
+            const providerID = ProviderID.make(id)
+            if (disabled.has(providerID)) continue
+            const apiKey = provider.env.map((item) => envs[item]).find(Boolean)
+            if (!apiKey) continue
+            mergeProvider(providerID, {
+              source: "env",
+              key: provider.env.length === 1 ? apiKey : undefined,
+            })
+          }
         }
 
         // load apikeys
@@ -1442,13 +1591,15 @@ export const layer = Layer.effect(
           }
         }
 
-        // load config - re-apply with updated data
+        // load config - re-apply with updated data. In Forge BYOK mode strip
+        // any `apiKey` from the options so a platform-level key in the
+        // mounted opencode.json doesn't surface as "connected via config".
         for (const [id, provider] of configProviders) {
           const providerID = ProviderID.make(id)
           const partial: Partial<Info> = { source: "config" }
           if (provider.env) partial.env = provider.env
           if (provider.name) partial.name = provider.name
-          if (provider.options) partial.options = provider.options
+          if (provider.options) partial.options = stripPlatformKey(provider.options) ?? provider.options
           mergeProvider(providerID, partial)
         }
 
@@ -1530,7 +1681,22 @@ export const layer = Layer.effect(
       }),
     )
 
-    const list = Effect.fn("Provider.list")(() => InstanceState.use(state, (s) => s.providers))
+    // Forge BYOK: state is cached per-directory by InstanceState's ScopedCache
+    // but embeds the auth.all() result from whatever Override was set on the
+    // FIRST request that hit this directory. Subsequent requests with a
+    // different Override (different user, or same user after POSTing a new
+    // key) would otherwise read the stale state — so a brand-new key never
+    // surfaces to the UI or to SDK construction. `getState()` invalidates
+    // when ForgeMode is on so the next get() rebuilds against the current
+    // Override. The expensive parts (config, modelsDev, plugins) are cached
+    // in their own services, so the rebuild is just the merge loops — sub-ms.
+    // Non-Forge mode is unchanged: state stays cached for the process lifetime.
+    const getState = Effect.fn("Provider.getState")(function* () {
+      if (yield* Auth.ForgeMode) yield* InstanceState.invalidate(state)
+      return yield* InstanceState.get(state)
+    })
+
+    const list = Effect.fn("Provider.list")(() => Effect.map(getState(), (s) => s.providers))
 
     async function resolveSDK(model: Model, s: State, envs: Record<string, string | undefined>) {
       try {
@@ -1688,11 +1854,11 @@ export const layer = Layer.effect(
     }
 
     const getProvider = Effect.fn("Provider.getProvider")((providerID: ProviderID) =>
-      InstanceState.use(state, (s) => s.providers[providerID]),
+      Effect.map(getState(), (s) => s.providers[providerID]),
     )
 
     const getModel = Effect.fn("Provider.getModel")(function* (providerID: ProviderID, modelID: ModelID) {
-      const s = yield* InstanceState.get(state)
+      const s = yield* getState()
       const provider = s.providers[providerID]
       if (!provider) {
         const catalogProvider = s.catalog[providerID]
@@ -1716,7 +1882,7 @@ export const layer = Layer.effect(
     })
 
     const getLanguage = Effect.fn("Provider.getLanguage")(function* (model: Model) {
-      const s = yield* InstanceState.get(state)
+      const s = yield* getState()
       const envs = yield* env.all()
       const key = `${model.providerID}/${model.id}`
       if (s.models.has(key)) return s.models.get(key)!
@@ -1742,7 +1908,7 @@ export const layer = Layer.effect(
     })
 
     const closest = Effect.fn("Provider.closest")(function* (providerID: ProviderID, query: string[]) {
-      const s = yield* InstanceState.get(state)
+      const s = yield* getState()
       const provider = s.providers[providerID]
       if (!provider) return undefined
       for (const item of query) {
@@ -1763,7 +1929,7 @@ export const layer = Layer.effect(
         )
       }
 
-      const s = yield* InstanceState.get(state)
+      const s = yield* getState()
       const provider = s.providers[providerID]
       if (!provider) return undefined
 
@@ -1815,7 +1981,7 @@ export const layer = Layer.effect(
       const cfg = yield* config.get()
       if (cfg.model) return parseModel(cfg.model)
 
-      const s = yield* InstanceState.get(state)
+      const s = yield* getState()
       const recent = yield* fs.readJson(path.join(Global.Path.state, "model.json")).pipe(
         Effect.map((x): { providerID: ProviderID; modelID: ModelID }[] => {
           if (!isRecord(x) || !Array.isArray(x.recent)) return []

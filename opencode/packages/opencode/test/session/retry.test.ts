@@ -30,6 +30,17 @@ function wrap(message: unknown): ReturnType<NamedError["toObject"]> {
   return { name: "", data: { message } }
 }
 
+function stallError(headers?: Record<string, string>): MessageV2.APIError {
+  return Schema.decodeUnknownSync(MessageV2.APIError.Schema)(
+    new MessageV2.APIError({
+      message: "Model stopped responding",
+      isRetryable: true,
+      metadata: { stalled: "true" },
+      responseHeaders: headers,
+    }).toObject(),
+  )
+}
+
 describe("session.retry.delay", () => {
   test("caps delay at 30 seconds when headers missing", () => {
     const error = apiError()
@@ -115,6 +126,61 @@ describe("session.retry.delay", () => {
       }),
     ),
   )
+
+  it.live("caps stalled-stream retries at STREAM_STALL_MAX_RETRIES", () =>
+    provideTmpdirInstance(() =>
+      Effect.gen(function* () {
+        const sessionID = SessionID.make("session-stall-cap")
+        const status = yield* SessionStatus.Service
+        const error = stallError({ "retry-after-ms": "0" })
+        let calls = 0
+
+        const step = yield* Schedule.toStepWithMetadata(
+          SessionRetry.policy({
+            provider: "test",
+            parse: Schema.decodeUnknownSync(MessageV2.APIError.Schema),
+            set: (info) => {
+              calls += 1
+              return status.set(sessionID, {
+                type: "retry",
+                attempt: info.attempt,
+                message: info.message,
+                next: info.next,
+              })
+            },
+          }),
+        )
+
+        // Drive well past the cap; the policy must stop scheduling retries
+        // (and stop invoking `set`) once the attempt count exceeds the cap.
+        for (let i = 0; i < SessionRetry.STREAM_STALL_MAX_RETRIES + 3; i++) {
+          yield* step(error)
+        }
+
+        expect(calls).toBe(SessionRetry.STREAM_STALL_MAX_RETRIES)
+      }),
+    ),
+  )
+})
+
+describe("session.retry.stall", () => {
+  test("classifies stalled streams as retryable with a capped attempt count", () => {
+    expect(SessionRetry.retryable(stallError(), retryProvider)).toEqual({
+      message: "Model stopped responding",
+      maxAttempts: SessionRetry.STREAM_STALL_MAX_RETRIES,
+    })
+  })
+
+  test("converts STREAM_STALLED watchdog errors to retryable APIError", () => {
+    const err = Object.assign(new Error("Model produced no output for 30s"), { code: "STREAM_STALLED" })
+    const result = MessageV2.fromError(err, { providerID })
+
+    expect(MessageV2.APIError.isInstance(result)).toBe(true)
+    if (!MessageV2.APIError.isInstance(result)) throw new Error("expected APIError")
+    expect(result.data.isRetryable).toBe(true)
+    expect(result.data.metadata?.stalled).toBe("true")
+    expect(result.data.message).toBe("Model produced no output for 30s")
+  })
 })
 
 describe("session.retry.retryable", () => {

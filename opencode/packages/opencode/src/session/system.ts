@@ -17,6 +17,7 @@ import { Permission } from "@/permission"
 import { Skill } from "@/skill"
 import { ForgeRuntimeState } from "../forge/runtime-state"
 import { scopePromptFor } from "../forge/scope-prompt"
+import { userPreferencesPrompt } from "../forge/user-preferences"
 
 export function provider(model: Provider.Model) {
   if (model.api.id.includes("gpt-4") || model.api.id.includes("o1") || model.api.id.includes("o3"))
@@ -67,7 +68,18 @@ export const layer = Layer.effect(
         // that legitimately need cross-container access.
         const scope = ForgeRuntimeState.isForgeProject() ? scopePromptFor(agent?.name) : undefined
 
-        return scope ? [scope, envBlock] : [envBlock]
+        // User preferences ("skills.md"). Auto-no-op when the per-project
+        // prefs file doesn't exist (non-Forge usage, or Forge user with no
+        // prefs set). Sits AFTER scope rules so platform constraints win
+        // on conflict, BEFORE envBlock so the model sees them as standing
+        // guidance rather than per-turn context.
+        const prefs = yield* userPreferencesPrompt()
+
+        const parts: string[] = []
+        if (scope) parts.push(scope)
+        if (prefs) parts.push(prefs)
+        parts.push(envBlock)
+        return parts
       }),
 
       skills: Effect.fn("SystemPrompt.skills")(function* (agent: Agent.Info) {

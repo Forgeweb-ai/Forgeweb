@@ -1105,6 +1105,20 @@ export function fromError(
           cause: e,
         },
       ).toObject()
+    // Stalled stream: the processor's idle watchdog raised this because the
+    // provider produced no output within the idle window. Map to a retryable
+    // APIError (metadata.stalled flags it for the capped stall-retry path in
+    // retry.ts) so the existing backoff machinery re-fires the turn, instead
+    // of leaving the UI stuck on "Thinking" forever.
+    case (e as { code?: string })?.code === "STREAM_STALLED":
+      return new APIError(
+        {
+          message: e instanceof Error && e.message ? e.message : "Model stopped responding",
+          isRetryable: true,
+          metadata: { stalled: "true", code: "STREAM_STALLED" },
+        },
+        { cause: e instanceof Error ? e : undefined },
+      ).toObject()
     case OutputLengthError.isInstance(e):
       return e
     case LoadAPIKeyError.isInstance(e):

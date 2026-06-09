@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true, "skipLibCheck": true },
+  "include": [
+    "src/forge/custom-providers.ts",
+    "src/forge/user-id.ts",
+    "src/provider/provider.ts",
+    "src/server/routes/instance/httpapi/handlers/provider.ts",
+    "src/session/prompt.ts"
+  ]
+}

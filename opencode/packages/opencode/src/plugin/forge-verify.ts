@@ -28,6 +28,7 @@
  */
 import type { Hooks, PluginInput } from "@opencode-ai/plugin"
 import * as Log from "@opencode-ai/core/util/log"
+import { createHmac } from "node:crypto"
 import { ForgeRuntimeState } from "../forge/runtime-state"
 
 const log = Log.create({ service: "plugin.forge-verify" })
@@ -44,6 +45,113 @@ const STEP_ENDED = "session.next.step.ended"
 
 const PRIMARY_AGENT = "build"
 const VERIFY_AGENT = "verify"
+
+// Forge stores project workspaces at .../projects/<uuid>/workspace —
+// extract that UUID from a session's directory.
+const PROJECT_ID_FROM_DIR = /\/projects\/([0-9a-f-]{32,40})\/workspace/
+
+/** Parse the project UUID out of a session's workspace directory.
+ *  Returns undefined for non-Forge directories (e.g. opencode used outside
+ *  Forge against an arbitrary path). */
+function projectIDFromDirectory(directory: string | undefined): string | undefined {
+  if (!directory) return undefined
+  return directory.match(PROJECT_ID_FROM_DIR)?.[1]
+}
+
+/** Mirror of forge-server's `_sign_project` in api/internal_routes.py.
+ *  HMAC-SHA256(secret, "project:<id>:<minute_bucket>"), hex-encoded.
+ *  60s window matches the server's `_TOKEN_WINDOW_SECONDS`. */
+function signProjectToken(projectID: string, secret: string): string {
+  const bucket = Math.floor(Date.now() / 1000 / 60)
+  const msg    = `project:${projectID}:${bucket}`
+  return createHmac("sha256", secret).update(msg).digest("hex")
+}
+
+/**
+ * Capture the post-turn workspace as a new project version.
+ *
+ * Hits POST /api/internal/projects/{id}/versions/snapshot on forge-server
+ * with an HMAC-signed token (FORGE_INTERNAL_SECRET, project-scoped). The
+ * server is content-addressed + no-ops on identical manifests, so
+ * duplicate calls within a turn are cheap and harmless.
+ *
+ * Why this auth path (not the user-JWT `/api/projects/{id}/versions`):
+ *   - The plugin runs outside any user request. No JWT to forward.
+ *   - FORGE_INTERNAL_SECRET + FORGE_API_URL are the only envs reliably
+ *     exported to opencode by dev.sh (lines 441-442); we use exactly
+ *     those.
+ *   - Mirrors the existing forge/agent-model.ts internal-call pattern.
+ *
+ * Best-effort: a snapshot failure must never affect the verify loop or
+ * surface to the user. Log + move on.
+ */
+async function snapshotProjectVersion(
+  input: PluginInput,
+  sessionID: string,
+): Promise<void> {
+  const base   = process.env.FORGE_API_URL?.replace(/\/$/, "")
+  const secret = process.env.FORGE_INTERNAL_SECRET
+  if (!base || !secret) {
+    log.warn("snapshot skipped: missing FORGE_API_URL or FORGE_INTERNAL_SECRET")
+    return
+  }
+
+  // Resolve the project ID from the session's workspace directory. We
+  // do NOT rely on process.env.FORGE_PROJECT_ID because dev.sh does not
+  // export it to opencode (opencode serves many projects from one process).
+  // SDK call shape mirrors packages/opencode/src/cli/cmd/tui/context/sync.tsx
+  // — flat `{ sessionID }`, throwOnError true, response is `{ data, ... }`.
+  // The previous `{ path: { id } }` shape was wrong; hey-api ignored it and
+  // returned undefined, silently failing the regex below.
+  let directory: string | undefined
+  try {
+    const resp = await input.client.session.get({ sessionID }, { throwOnError: true })
+    directory  = (resp as any)?.data?.directory
+  } catch (err) {
+    log.warn("snapshot skipped: session.get failed", { sessionID, error: String(err) })
+    return
+  }
+  if (!directory) {
+    log.warn("snapshot skipped: session.directory empty", { sessionID })
+    return
+  }
+  const projectID = projectIDFromDirectory(directory)
+  if (!projectID) {
+    log.info("snapshot skipped: directory is not a Forge workspace", { directory })
+    return
+  }
+  log.info("snapshot: resolved project from session", { sessionID, projectID })
+
+  const token = signProjectToken(projectID, secret)
+  try {
+    const resp = await fetch(
+      `${base}/api/internal/projects/${projectID}/versions/snapshot`,
+      {
+        method: "POST",
+        headers: {
+          "X-Forge-Internal-Token": token,
+          "Content-Type":           "application/json",
+        },
+      },
+    )
+    if (!resp.ok) {
+      log.warn("post-turn snapshot returned non-2xx", {
+        status: resp.status, projectID,
+      })
+      return
+    }
+    const body = (await resp.json().catch(() => null)) as
+      | { id: string; is_no_op: boolean }
+      | null
+    log.info("post-turn snapshot ok", {
+      projectID,
+      versionID: body?.id,
+      noOp:      body?.is_no_op,
+    })
+  } catch (err) {
+    log.warn("post-turn snapshot failed", { projectID, error: String(err) })
+  }
+}
 
 interface VerifyRunState {
   startedAt: number
@@ -121,14 +229,22 @@ async function readVerifyFinalText(
 }
 
 export const ForgeVerifyPlugin = async (input: PluginInput): Promise<Hooks> => {
-  if (!ForgeRuntimeState.isForgeProject()) {
-    // No-op for non-Forge users. Plugin still loads cleanly; just does nothing.
-    log.info("forge-verify: not a Forge project, plugin idle")
+  // Plugin-level gate: we need *process-level* signals that dev.sh actually
+  // exports to opencode. Originally this was ForgeRuntimeState.isForgeProject()
+  // which reads FORGE_PROJECT_ID — but opencode is a single host process
+  // serving N projects, so dev.sh can't set a single project id on it.
+  // FORGE_API_URL + FORGE_INTERNAL_SECRET are the right Forge-context signals:
+  // both are exported in dev.sh:441-442, neither leaks to non-Forge opencode.
+  //
+  // We still call isForgeProject() per session inside the handler (via the
+  // session.directory regex) so per-project gating downstream is unchanged.
+  if (!process.env.FORGE_API_URL || !process.env.FORGE_INTERNAL_SECRET) {
+    log.info("forge-verify: Forge env not present, plugin idle")
     return {}
   }
 
   log.info("forge-verify plugin active", {
-    projectID: process.env.FORGE_PROJECT_ID,
+    apiBase: process.env.FORGE_API_URL,
   })
 
   return {
@@ -152,14 +268,33 @@ export const ForgeVerifyPlugin = async (input: PluginInput): Promise<Hooks> => {
       const finish: string | undefined = props.finish
       ForgeRuntimeState.recordStepEnded(sessionID, finish)
 
+      log.info("STEP_ENDED received", { sessionID, agent, finish })
+
       // Only follow the primary agent's turns. If the ending step was verify
       // itself, or any other subagent, we MUST skip — otherwise infinite loop.
-      if (agent !== PRIMARY_AGENT) return
+      if (agent !== PRIMARY_AGENT) {
+        log.info("gate: agent is not primary, skipping", { agent })
+        return
+      }
 
       // Only fire when the agent is truly done with its turn — not mid-tool-call.
       // AI-SDK finish reasons: "stop" = done, "tool-calls" = more steps coming,
       // "length" / "content-filter" / "error" = abort cases we shouldn't verify.
-      if (finish !== "stop") return
+      if (finish !== "stop") {
+        log.info("gate: finish is not 'stop', skipping", { finish })
+        return
+      }
+
+      // ── Snapshot fallback (independent of verify) ────────────────────────
+      // The verify subagent's lifecycle has many failure modes (budget
+      // exhausted, timeout, escalation, the subagent not loading at all in
+      // some setups). We don't want versions to depend on verify being
+      // healthy — that's a separate concern. Snapshot the post-turn state
+      // RIGHT HERE, before we even try to spawn verify. If verify later
+      // makes auto-fix changes and we re-snapshot, the manifest-equality
+      // no-op on the server elides the duplicate.
+      log.info("fallback snapshot: primary turn ended cleanly", { sessionID })
+      void snapshotProjectVersion(input, sessionID)
 
       const state =
         runs.get(sessionID) ?? {
@@ -217,10 +352,23 @@ export const ForgeVerifyPlugin = async (input: PluginInput): Promise<Hooks> => {
         text = await readVerifyFinalText(input.client, sessionID)
         if (text) break
       }
-      if (!text) return
+      if (!text) {
+        // Verify emitted nothing within the window → per verify.txt step 7,
+        // "stay silent if the first check passed." That's a clean state and
+        // is the most common path for a non-broken AI turn. Snapshot it.
+        void snapshotProjectVersion(input, sessionID)
+        return
+      }
 
       const escalate = tryParseEscalate(text)
-      if (!escalate) return
+      if (!escalate) {
+        // Verify emitted a "Fixed it" message but no escalation JSON →
+        // it found something, auto-fixed it, and confirmed the app is up.
+        // The CURRENT files reflect both the primary agent's intent + the
+        // verify fixes; that's the snapshot we want.
+        void snapshotProjectVersion(input, sessionID)
+        return
+      }
 
       // Track per-signature attempts. We hash the error message (first 80 chars)
       // so "same error keeps reappearing" gets blocked by PER_SIGNATURE_BUDGET.

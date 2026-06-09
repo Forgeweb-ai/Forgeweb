@@ -1,5 +1,5 @@
 import { Image } from "@/image/image"
-import { Cause, Deferred, Effect, Exit, Layer, Context, Scope, Schema } from "effect"
+import { Cause, Deferred, Duration, Effect, Exit, Layer, Context, Scope, Schema } from "effect"
 import * as Stream from "effect/Stream"
 import { Agent } from "@/agent/agent"
 import { Bus } from "@/bus"
@@ -31,6 +31,35 @@ import { Usage, type LLMEvent } from "@opencode-ai/llm"
 
 const DOOM_LOOP_THRESHOLD = 3
 const log = Log.create({ service: "session.processor" })
+
+// ── Stalled-stream detection ────────────────────────────────────────────────
+// A provider/connection can wedge mid-turn: the stream stays open but emits no
+// further events and never errors, so the existing error-based retry never
+// fires and the UI sits on "Thinking" indefinitely. A watchdog fails the turn
+// after STREAM_IDLE_TIMEOUT_MS of silence; the failure feeds the normal retry
+// policy (see retry.ts — capped at STREAM_STALL_MAX_RETRIES so we don't loop on
+// the user's key). 0 disables the watchdog entirely (ops kill-switch).
+//
+// Important: tool-execution time does NOT count as a stall. While a tool runs,
+// the model stream is legitimately quiet, so the watchdog only arms when no
+// tool call is in flight (ctx.toolcalls is empty).
+const STREAM_IDLE_TIMEOUT_MS = (() => {
+  const raw = Number.parseInt(process.env["FORGE_STREAM_IDLE_TIMEOUT_MS"] ?? "", 10)
+  return Number.isInteger(raw) && raw >= 0 ? raw : 30_000
+})()
+// How often the watchdog checks for silence. Detection latency is at most
+// STREAM_IDLE_TIMEOUT_MS + this tick. Cheap (one wakeup / 5s while streaming).
+const STREAM_WATCHDOG_TICK_MS = 5_000
+
+// Raised by the watchdog; MessageV2.fromError maps `code` to a retryable
+// APIError so the turn is re-fired by the existing backoff policy.
+class StreamStalledError extends Error {
+  readonly code = "STREAM_STALLED"
+  constructor(idleMs: number) {
+    super(`Model produced no output for ${Math.round(idleMs / 1000)}s`)
+    this.name = "StreamStalledError"
+  }
+}
 
 export type Result = "compact" | "stop" | "continue"
 
@@ -120,6 +149,10 @@ export const layer = Layer.effect(
         reasoningMap: {},
       }
       let aborted = false
+      // Wall-clock of the last stream event, used by the idle watchdog in
+      // process(). Updated on every event in handleEvent; reset at the start of
+      // each (re)try so a fresh attempt doesn't inherit a stale timestamp.
+      let lastStreamActivity = Date.now()
       const slog = log.clone().tag("session.id", input.sessionID).tag("messageID", input.assistantMessage.id)
 
       const parse = (e: unknown) =>
@@ -303,6 +336,8 @@ export const layer = Layer.effect(
       const toolInput = (value: unknown): Record<string, any> => (isRecord(value) ? value : { value })
 
       const handleEvent = Effect.fnUntraced(function* (value: StreamEvent) {
+        // Any event = the stream is alive; disarm the idle watchdog window.
+        lastStreamActivity = Date.now()
         switch (value.type) {
           case "reasoning-start":
             if (value.id in ctx.reasoningMap) return
@@ -786,14 +821,48 @@ export const layer = Layer.effect(
           yield* Effect.gen(function* () {
             ctx.currentText = undefined
             ctx.reasoningMap = {}
+            // Fresh idle window per (re)try, otherwise a retry could trip the
+            // watchdog immediately on a stale timestamp.
+            lastStreamActivity = Date.now()
             yield* status.set(ctx.sessionID, { type: "busy" })
             const stream = llm.stream(streamInput)
 
-            yield* stream.pipe(
+            const drain = stream.pipe(
               Stream.tap((event) => handleEvent(event)),
               Stream.takeUntil(() => ctx.needsCompaction),
               Stream.runDrain,
             )
+
+            // Without the watchdog a wedged provider stream hangs open forever
+            // (no bytes, no error) and the turn never completes or retries.
+            // STREAM_IDLE_TIMEOUT_MS <= 0 disables it (ops kill-switch).
+            if (STREAM_IDLE_TIMEOUT_MS <= 0) {
+              yield* drain
+              return
+            }
+
+            const watchdog = Effect.gen(function* () {
+              while (true) {
+                yield* Effect.sleep(Duration.millis(STREAM_WATCHDOG_TICK_MS))
+                // A running tool legitimately produces no model output — only
+                // arm the watchdog when nothing is executing.
+                if (Object.keys(ctx.toolcalls).length > 0) continue
+                if (Date.now() - lastStreamActivity >= STREAM_IDLE_TIMEOUT_MS) {
+                  slog.info("stream idle past timeout; failing turn to trigger retry", {
+                    idleMs: STREAM_IDLE_TIMEOUT_MS,
+                  })
+                  return yield* Effect.fail(new StreamStalledError(STREAM_IDLE_TIMEOUT_MS))
+                }
+              }
+            })
+
+            // raceFirst: first to settle wins and interrupts the loser. Normal
+            // completion → drain wins, watchdog interrupted. Stall → watchdog
+            // FAILS (not an interrupt of this gen), so onInterrupt below does
+            // not fire (aborted stays false) and the failure flows into the
+            // retry policy via catchCauseIf. Interrupting the drain tears down
+            // the provider stream through its scoped AbortController.
+            yield* Effect.raceFirst(drain, watchdog)
           }).pipe(
             Effect.onInterrupt(() =>
               Effect.gen(function* () {

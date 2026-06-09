@@ -1,0 +1,58 @@
+# Forge build of the vendored opencode fork
+# ===========================================
+# Runs opencode from source under bun (the project's declared package
+# manager). We do NOT use the upstream packages/opencode/Dockerfile because
+# that expects a pre-built native binary in dist/; we want to run our
+# patched TypeScript directly so Phase 2 (Auth.Override + Auth.ForgeMode +
+# forge-auth middleware + per-request key suppression in provider.ts) is
+# actually executed.
+#
+# Build context must be the opencode/ directory:
+#   docker build -f opencode/Dockerfile.forge -t forge-opencode ./opencode
+#
+# Image size is dominated by the @ai-sdk/* dependency surface and is
+# accepted as the cost of running from source. If image size becomes a
+# scale concern (it's hundreds of MB), follow up with a `bun build` pass
+# that produces a single bundled file and ship that instead — same patch
+# code, smaller runtime.
+
+FROM oven/bun:1.3.14-alpine
+
+# Match the runtime tooling the upstream Dockerfile assumes plus python3
+# (the ui-ux-pro-max skill's reasoning engine needs it for the design-
+# system generator's scripts/search.py).
+RUN apk add --no-cache python3 py3-pip ripgrep libgcc libstdc++ git
+
+WORKDIR /opencode
+
+# Manifest layer first so bun install caches across rebuilds that only
+# touch source files.
+COPY package.json bun.lock bunfig.toml turbo.json tsconfig.json ./
+COPY packages ./packages
+
+# The root package.json declares "../forge-ui" as a workspace, but that
+# path is outside this build context (we only ship opencode/). Strip it
+# before install so bun doesn't error on the missing workspace. This is a
+# build-time-only edit; the original package.json on disk is untouched.
+RUN apk add --no-cache jq \
+ && jq '.workspaces.packages |= map(select(. != "../forge-ui"))' package.json > package.tmp.json \
+ && mv package.tmp.json package.json
+
+RUN bun install --no-save --production=false
+
+# Fail fast if the Phase 2 patches aren't in the build context. Prevents a
+# silent regression where someone builds the image off a clean upstream
+# checkout and re-leaks platform keys.
+RUN test -f packages/opencode/src/auth/index.ts \
+ && test -f packages/opencode/src/server/routes/instance/httpapi/middleware/forge-auth.ts \
+ && grep -q "ForgeMode" packages/opencode/src/auth/index.ts \
+ && grep -q "forgeAuthLayer" packages/opencode/src/server/routes/instance/httpapi/server.ts \
+ && grep -q "forgeMode" packages/opencode/src/provider/provider.ts \
+ || (echo "FATAL: Phase 2 patches missing — refusing to build a leaky image" && exit 1)
+
+ENV NODE_ENV=production
+EXPOSE 7777
+
+# Default command — docker-compose overrides with the same line for clarity
+# at the call site.
+CMD ["bun", "run", "--conditions=browser", "packages/opencode/src/index.ts", "serve", "--port", "7777", "--hostname", "0.0.0.0"]

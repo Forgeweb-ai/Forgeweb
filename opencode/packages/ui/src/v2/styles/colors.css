@@ -167,5 +167,19 @@
     --v2-pink-1000: #8c2d61ff;
     --v2-pink-1100: #6f284fff;
     --v2-pink-1200: #5c1d3fff;
+
+    /* ── Sand ── warm cream surface ramp (Forge brand) */
+    --v2-sand-100: #f5efe6ff;
+    --v2-sand-200: #fbf7f0ff;
+    --v2-sand-300: #ede4d3ff;
+    --v2-sand-400: #ddd0b9ff;
+    --v2-sand-500: #c7b594ff;
+    --v2-sand-600: #a8946eff;
+    --v2-sand-700: #8a7a6eff;
+    --v2-sand-800: #6b5f54ff;
+    --v2-sand-900: #4e453dff;
+    --v2-sand-1000: #382f28ff;
+    --v2-sand-1100: #2a221cff;
+    --v2-sand-1200: #1c1612ff;
   }
 }

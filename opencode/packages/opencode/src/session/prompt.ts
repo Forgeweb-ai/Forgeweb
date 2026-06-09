@@ -61,6 +61,108 @@ import { referencePromptMetadata, referenceTextPart } from "./prompt/reference"
 import { SessionReminders } from "./reminders"
 import { SessionTools } from "./tools"
 import { LLMEvent } from "@opencode-ai/llm"
+import { Auth } from "@/auth"
+
+// ── Forge auto-continuation ──────────────────────────────────────────────────
+// In Forge mode, a model that wrote code and then stopped without invoking
+// the verify subagent — or invoked verify and got STATUS=BLOCKED — should
+// be re-prompted automatically so the next visible reply is actually
+// finished work, not "almost there!" partway through a plan. Prompt-level
+// rules (STAY ON TASK, VERIFY GATE) tell the agent to do this, but cheap
+// models (kimi-k2.6 free, deepseek free) ignore the rules when they feel
+// like wrapping up. Putting the loop in code closes that escape hatch.
+//
+// Bounded by FORGE_AUTOCONTINUE_MAX per (sessionID, userMessageID) so a
+// hung model cannot burn BYOK tokens forever. After the cap the loop
+// exits normally and the user sees whatever the agent produced.
+//
+// Cost shape: zero outside Forge mode. Inside Forge mode, kicks in only
+// for code-touching turns that skipped verify — exactly the case where
+// the user would otherwise type "did you finish?" and pay for a second
+// round-trip anyway.
+const FORGE_AUTOCONTINUE_MAX = 3
+const _forgeContinueBudget = new Map<string, number>()
+const CODE_TOUCH_TOOLS = new Set(["write", "edit", "patch", "multiedit", "multiEdit"])
+
+function findVerifyOutcome(parts: ReadonlyArray<MessageV2.Part>): "ok" | "blocked" | "none" {
+  // Walk backwards — most recent verify call wins. We accept either a
+  // `tool` part naming the task tool with a "verify" subagent input,
+  // OR a free-text part containing STATUS= (the verify subagent's
+  // documented return format).
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i]
+    if (p.type === "tool" && (p as any).tool === "task") {
+      const state: any = (p as any).state ?? {}
+      const inputStr  = JSON.stringify(state.input ?? state.args ?? "").toLowerCase()
+      const outputStr = (() => {
+        const out = state.output ?? state.result ?? ""
+        return typeof out === "string" ? out : JSON.stringify(out)
+      })()
+      if (!inputStr.includes("verify")) continue
+      if (/STATUS\s*=\s*OK/i.test(outputStr)) return "ok"
+      if (/STATUS\s*=\s*BLOCKED/i.test(outputStr)) return "blocked"
+      // Verify ran but didn't surface a clear status — treat as ok so we
+      // don't loop forever on ambiguous output.
+      return "ok"
+    }
+  }
+  return "none"
+}
+
+// Did the model leave its plan unfinished? Walks all in-context messages
+// newest-first; the most recent `todo` tool call defines the current plan,
+// and we report whether any item is still pending/in_progress. Mirrors
+// findVerifyOutcome's part-scan deliberately: it reads the todo list the
+// model still has in its own context (no DB read, no new service dependency,
+// no work outside the turn-end path), so we only auto-continue while the
+// plan is actually visible to the model. A todowrite that was compacted out
+// of context is also gone from the model's view — continuing on it couldn't
+// help — so ignoring it here is correct, not a gap.
+function hasIncompleteTodos(messages: ReadonlyArray<MessageV2.WithParts>): boolean {
+  for (let mi = messages.length - 1; mi >= 0; mi--) {
+    const parts = messages[mi].parts
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i]
+      if (p.type !== "tool" || (p as any).tool !== "todo") continue
+      const state: any = (p as any).state ?? {}
+      // The todowrite tool stores its list under input.todos and mirrors it
+      // into metadata.todos / output (JSON). Try each so a missing field on
+      // one shape doesn't blind us.
+      const todos: any[] | null = (() => {
+        const input = state.input ?? state.args
+        if (input && Array.isArray(input.todos)) return input.todos
+        const meta = state.metadata
+        if (meta && Array.isArray(meta.todos)) return meta.todos
+        const out = state.output ?? state.result
+        if (typeof out === "string") {
+          try {
+            const parsed = JSON.parse(out)
+            if (Array.isArray(parsed)) return parsed
+          } catch {}
+        }
+        return null
+      })()
+      if (!todos) continue // unparseable list — fall back to an older write
+      return todos.some((t) => {
+        const s = String(t?.status ?? "").toLowerCase()
+        return s === "pending" || s === "in_progress"
+      })
+    }
+  }
+  return false
+}
+
+function forgeContinuationPrompt(reason: "verify_missing" | "verify_blocked" | "todos_pending", pass: number): string {
+  const head = `[forge:auto-continue ${pass}/${FORGE_AUTOCONTINUE_MAX}]`
+  if (reason === "verify_blocked") {
+    return `${head} Verify subagent returned STATUS=BLOCKED. Per the NO-HANDOFF RULE in your instructions, you may NOT respond to the user while a blocker is open. Take a fix pass on the specific blocker verify named, then re-invoke verify. Your next emission MUST be a tool call — text-only replies are not allowed in this state.`
+  }
+  if (reason === "todos_pending") {
+    return `${head} Your todo list still has pending or in-progress items. Per the STAY ON TASK rule in your instructions, you may NOT hand back to the user with todos left open. Pick up the next incomplete item and keep working; mark each item completed via the todo tool as you finish it, and only respond to the user once every item is genuinely done or cancelled. Your next emission MUST be a tool call — text-only replies are not allowed in this state.`
+  }
+  // verify_missing
+  return `${head} You wrote code in this turn but never invoked the verify subagent. Per the VERIFY GATE rule in your instructions, your last tool call before responding to the user MUST be a task tool invocation of the verify subagent. Either continue executing your announced plan (next file, next route, next page) OR invoke verify now. Your next emission MUST be a tool call — text-only replies are not allowed in this state.`
+}
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -1270,6 +1372,87 @@ export const layer = Layer.effect(
             !hasToolCalls &&
             lastUser.id < lastAssistant.id
           ) {
+            // Forge auto-continuation gate: if Forge mode is on AND this
+            // turn touched code AND the agent did not get a clean verify
+            // pass, inject a synthetic user message and re-enter the loop
+            // instead of returning to the FE. Bounded per (sessionID,
+            // userMessageID) so a stuck model can't burn unlimited tokens.
+            //
+            // Why a synthetic part: the FE renders parts with
+            // `synthetic: true` differently (and the same flag is used by
+            // taskFinishImpl at line ~487 for "Summarize the task tool
+            // output above and continue" — exact same mechanism, identical
+            // visibility semantics).
+            const forgeMode = yield* Auth.ForgeMode
+            // Note: isLastStep is computed downstream from agent.steps and
+            // isn't in scope here. FORGE_AUTOCONTINUE_MAX is our cap on its
+            // own; if the agent ALSO has a steps limit, the existing max-
+            // steps machinery will inject MAX_STEPS and force-stop the
+            // model on the next iteration regardless.
+            if (forgeMode) {
+              const parts = lastAssistantMsg?.parts ?? []
+              const touchedCode = parts.some(
+                (p) => p.type === "tool" && CODE_TOUCH_TOOLS.has((p as any).tool ?? ""),
+              )
+              // Two reasons to keep going instead of handing back to the user:
+              //   1. VERIFY GATE — this turn touched code but skipped/blocked
+              //      the verify subagent (only meaningful on code-touch turns).
+              //   2. TODO GATE — the plan still has open items, regardless of
+              //      whether code was touched this turn (covers research/plan
+              //      turns and code turns that verified a partial slice).
+              // Verify takes priority on code-touch turns; todos are the
+              // fallback. Both share one budget so total auto-continues per
+              // user message stay capped at FORGE_AUTOCONTINUE_MAX.
+              let reason: "verify_missing" | "verify_blocked" | "todos_pending" | null = null
+              if (touchedCode) {
+                const verify = findVerifyOutcome(parts)
+                reason =
+                  verify === "none"     ? "verify_missing" :
+                  verify === "blocked"  ? "verify_blocked" :
+                  null
+              }
+              if (!reason && hasIncompleteTodos(msgs)) reason = "todos_pending"
+              if (reason) {
+                const budgetKey = `${sessionID}|${lastUser.id}`
+                const used = _forgeContinueBudget.get(budgetKey) ?? 0
+                if (used < FORGE_AUTOCONTINUE_MAX) {
+                  _forgeContinueBudget.set(budgetKey, used + 1)
+                  yield* slog.info("forge auto-continue", {
+                    reason,
+                    pass: used + 1,
+                    max: FORGE_AUTOCONTINUE_MAX,
+                  })
+                  const continueMsg: MessageV2.User = {
+                    id: MessageID.ascending(),
+                    sessionID,
+                    role: "user",
+                    time: { created: Date.now() },
+                    agent: lastUser.agent,
+                    model: lastUser.model,
+                  }
+                  yield* sessions.updateMessage(continueMsg)
+                  yield* sessions.updatePart({
+                    id: PartID.ascending(),
+                    messageID: continueMsg.id,
+                    sessionID,
+                    type: "text",
+                    text: forgeContinuationPrompt(reason, used + 1),
+                    synthetic: true,
+                  } satisfies MessageV2.TextPart)
+                  continue
+                }
+                // Budget exhausted — fall through to break. The user sees
+                // the agent's last reply as-is; better than burning the
+                // user's tokens in an infinite "almost there!" loop.
+                yield* slog.info("forge auto-continue: cap reached", {
+                  used,
+                  reason,
+                })
+              }
+              // Turn ended without us auto-continuing — free the budget so
+              // the next user message starts fresh.
+              _forgeContinueBudget.delete(`${sessionID}|${lastUser.id}`)
+            }
             yield* slog.info("exiting loop")
             break
           }

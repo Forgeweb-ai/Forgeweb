@@ -277,6 +277,198 @@
   }
 }
 
+/* ── Message headers (name + avatar/diamond + timestamp) ── */
+/* Assistant header sits above the prose, left-aligned (default flex row).   */
+/* User header (data-align="right") flips to right-aligned over the bubble.  */
+/* Reuses existing avatar/Icon primitives — no new icon assets introduced.   */
+[data-slot="assistant-message-header"],
+[data-slot="user-message-header"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 8px;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-large);
+  color: var(--text-strong);
+
+  [data-slot="message-header-name"] {
+    font-weight: var(--font-weight-medium);
+  }
+
+  [data-slot="message-header-spacer"] {
+    flex: 1 1 auto;
+  }
+
+  [data-slot="message-header-time"] {
+    flex: 0 0 auto;
+    color: var(--text-base);
+    font-variant-numeric: tabular-nums;
+  }
+
+  [data-slot="message-header-avatar"] {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--v2-background-bg-inverse);
+    color: var(--v2-background-bg-base);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: var(--font-weight-medium);
+    text-transform: uppercase;
+  }
+
+  /* Gradient variant — used by the user-message header so the avatar
+     matches the warm orange→red gradient on the rail's profile button. */
+  [data-slot="message-header-avatar"][data-style="gradient"] {
+    background: linear-gradient(135deg, oklch(0.78 0.15 55), oklch(0.58 0.21 18));
+    color: #ffffff;
+    font-weight: var(--font-weight-bold);
+  }
+
+  /* Forge mark — square + rotated inner pip; uses brand orange ramp.        */
+  [data-slot="message-header-mark"] {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: var(--v2-orange-900);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  [data-slot="message-header-mark-pip"] {
+    width: 8px;
+    height: 8px;
+    background: var(--v2-background-bg-base);
+    transform: rotate(45deg);
+  }
+}
+
+/* Right-aligned variant for the user message header: avatar + timestamp
+   sit on the right side of the row, mirroring the right-aligned bubble.
+   No name label — the timestamp + initial is the entire identity hint. */
+[data-slot="user-message-header"][data-align="right"] {
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+
+/* ── Build summary card ── */
+/* Diagonal terracotta gradient using the existing orange-900/1000/1100      */
+/* ramp stops. No new colour tokens. White text + soft tint for secondary    */
+/* lines (orange-200) for readable contrast on the gradient.                 */
+[data-component="build-summary"] {
+  width: 100%;
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  color: #ffffff;
+  background: linear-gradient(
+    135deg,
+    var(--v2-orange-900) 0%,
+    var(--v2-orange-1000) 55%,
+    var(--v2-orange-1100) 100%
+  );
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-large);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  [data-slot="build-summary-pill"] {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.13);
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  [data-slot="build-summary-pill-dot"] {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #ffffff;
+  }
+
+  [data-slot="build-summary-pill-sep"] {
+    opacity: 0.5;
+  }
+
+  [data-slot="build-summary-pill-mono"] {
+    font-family: var(--font-family-mono);
+  }
+
+  [data-slot="build-summary-title"] {
+    font-weight: var(--font-weight-medium);
+  }
+
+  [data-slot="build-summary-list"] {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  [data-slot="build-summary-item"] {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  [data-slot="build-summary-bullet"] {
+    flex: 0 0 auto;
+    color: var(--v2-orange-200);
+    line-height: 1.55;
+  }
+
+  [data-slot="build-summary-item-body"] {
+    min-width: 0;
+  }
+
+  [data-slot="build-summary-item-body"] code {
+    background: rgba(0, 0, 0, 0.18);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-family: var(--font-family-mono);
+    font-size: 11px;
+  }
+
+  [data-slot="build-summary-divider"] {
+    border-top: 0.5px solid rgba(255, 255, 255, 0.18);
+    margin-top: 2px;
+    padding-top: 10px;
+    color: var(--v2-orange-200);
+  }
+}
+
+/* Hosting div for the diff-stats line under the build summary               */
+[data-slot="build-summary-diffstats"] {
+  margin-top: 10px;
+  font-family: var(--font-family-mono);
+  font-size: 11px;
+  color: var(--text-base);
+
+  [data-slot="build-summary-diffstats-add"] {
+    color: var(--v2-green-800);
+  }
+
+  [data-slot="build-summary-diffstats-del"] {
+    color: var(--v2-orange-900);
+  }
+}
+
 [data-component="reasoning-part"] {
   width: 100%;
   color: var(--text-base);
