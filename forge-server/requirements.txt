@@ -1,6 +1,10 @@
 fastapi==0.115.5
 uvicorn[standard]==0.32.1
-pydantic==2.9.2
+# pydantic[email] pulls in email-validator. forge_server/api/auth.py uses
+# pydantic.EmailStr, which raises ImportError at import time without it.
+# Without this extra, uvicorn crashes on startup with:
+#   ImportError: email-validator is not installed, run `pip install pydantic[email]`
+pydantic[email]==2.9.2
 pydantic-settings==2.6.1
 
 # Database
@@ -11,7 +15,13 @@ alembic==1.14.0
 
 # Auth
 python-jose[cryptography]==3.3.0
+# passlib 1.7.4 was authored before bcrypt 4.x. Its internal "detect_wrap_bug"
+# probe at backend-load time hashes a >72-byte test string, which bcrypt 4.1+
+# rejects with `ValueError: password cannot be longer than 72 bytes`. Pin
+# bcrypt to 4.0.1 — the last version compatible with passlib 1.7.4's probe.
+# Tracked upstream as https://foss.heptapod.net/python-libs/passlib/-/issues/190
 passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
 python-multipart==0.0.17
 
 # Redis (heartbeat store)

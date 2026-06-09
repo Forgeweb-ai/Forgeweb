@@ -85,5 +85,16 @@ SECRETS_AUDIT.local.md
 # forge-server smoke artifacts
 forge-server/*.png
 
-# forge-server smoke artifacts
-forge-server/*.png
+# Landing site — deployed separately to forgeweb.ai, not shipped in the OSS repo
+/landing/
+
+# Backup files from in-place sed edits
+*.bak
+
+# Opencode-generated runtime state in the platform config dir. The two real
+# config files (AGENTS.md, opencode.json) stay tracked; everything else
+# opencode writes on boot (.gitignore, opencode-local.db, instance state)
+# is runtime cruft.
+/forge-opencode-config/*
+!/forge-opencode-config/AGENTS.md
+!/forge-opencode-config/opencode.json

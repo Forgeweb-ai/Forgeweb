@@ -48,13 +48,24 @@ services:
       dockerfile: Dockerfile.forge
     container_name: forge-opencode
     restart: unless-stopped
+    # Source the root .env so opencode sees the same vars dev.sh exports
+    # into its opencode subshell — DESIGN_ANALYST_MODEL, the {env:*_API_KEY}
+    # placeholder fallbacks, etc. Per-user keys still come from the resolver
+    # (BYOK); these env values are just the platform-level defaults the
+    # config file references via {env:...} substitution.
+    env_file: .env
     working_dir: /opencode
     # Run the vendored fork from source under bun. The npm package
     # opencode-ai@latest does NOT include the Forge Phase 2 patches
     # (Auth.ForgeMode + forge-auth middleware + per-request key suppression);
     # using it would silently fall back to the shared auth.json / env-var
     # behaviour and re-leak platform keys to every Forge user.
-    command: ["bun", "run", "--conditions=browser", "packages/opencode/src/index.ts", "serve", "--port", "7777", "--hostname", "0.0.0.0"]
+    #
+    # --print-logs is required so opencode's logger writes to stderr instead
+    # of a file inside the container — without it, `docker compose logs
+    # opencode` only ever shows startup output and every handler exception
+    # is invisible. See packages/opencode/src/index.ts:96 (Log.init).
+    command: ["bun", "run", "--conditions=browser", "packages/opencode/src/index.ts", "serve", "--port", "7777", "--hostname", "0.0.0.0", "--print-logs"]
     volumes:
       # Use ${FORGE_DATA_ROOT:-./forge-data}. On macOS the bare `/forge-data`
       # path is not in Docker Desktop's shared-paths list, so the mount is
@@ -71,7 +82,14 @@ services:
       # is /root/.config/opencode inside the container. Loaded BEFORE any
       # per-project .opencode/opencode.json, so every project inherits it.
       # See: opencode/packages/core/src/global.ts (xdgConfig + "opencode")
-      - ./forge-opencode-config:/root/.config/opencode:ro
+      #
+      # Mounted READ-WRITE because opencode's Config.loadInstanceState writes
+      # a managed .gitignore (and other instance-state files) into this dir
+      # at every startup. A :ro mount causes EROFS during bootstrap which
+      # makes every API request return 500 UnknownError. The repo-level
+      # .gitignore ignores opencode-generated files in this folder so they
+      # don't pollute `git status`.
+      - ./forge-opencode-config:/root/.config/opencode
     networks:
       - forge-net
     environment:
@@ -90,6 +108,30 @@ services:
       # is auditable in forge-llm-proxy-logs/, regardless of which user
       # owns the key being injected.
       - ANTHROPIC_BASE_URL=http://forge-llm-proxy:7799
+      # Shared HMAC secret between forge-server's opencode_proxy and the
+      # forge-user middleware in opencode. Both processes MUST see the same
+      # value or opencode rejects every forge-server-signed request, the
+      # model resolver falls back to nothing, and the UI shows "No model
+      # results". dev.sh sets the same default; we mirror it here so a
+      # plain `docker compose up` works out of the box.
+      - FORGE_INTERNAL_SECRET=${FORGE_INTERNAL_SECRET:-dev-only-internal-secret-do-not-ship}
+      # Where opencode's resolver calls back into forge-server. Docker DNS
+      # resolves `forge-server` to the service IP on forge-net.
+      - FORGE_API_URL=http://forge-server:8000
+      # Default model the opencode fork hands new sessions when no per-user
+      # model is set. Matches the value dev.sh exports — the free opencode
+      # zen DeepSeek model needs no key, so a fresh sign-up has a working
+      # default in the model picker.
+      - PRIMARY_MODEL=${PRIMARY_MODEL:-opencode/deepseek-v4-flash-free}
+      # Design subagent's model. dev.sh defaults to anthropic/claude-sonnet-4-6;
+      # the .env on disk also sets this so the env_file pulls in a real value.
+      - DESIGN_ANALYST_MODEL=${DESIGN_ANALYST_MODEL:-anthropic/claude-sonnet-4-6}
+      # opencode's Dockerfile bakes NODE_ENV=production; in that mode the
+      # framework swallows handler stack traces and returns the generic
+      # `UnknownError` with only a ref code. Override to development so the
+      # real error surfaces in `docker compose logs opencode`. Production-
+      # grade deploys should remove this line.
+      - NODE_ENV=development
     depends_on:
       - forge-llm-proxy
     # NOT exposed to internet — only forge-be communicates with it
@@ -116,6 +158,13 @@ services:
       # Sleep settings
       - SLEEP_CHECK_INTERVAL=60
       - IDLE_TTL=600
+      # Shared HMAC secret — must match opencode's value above. See the
+      # comment on the opencode service for why this matters.
+      - FORGE_INTERNAL_SECRET=${FORGE_INTERNAL_SECRET:-dev-only-internal-secret-do-not-ship}
+      # dev.sh sets this; it unlocks dev-mode-only auth / feature gates the
+      # app needs locally (skips strict prod checks for an unsigned origin,
+      # etc.). Mirrors the exact value dev.sh exports right before uvicorn.
+      - DEV_MODE=true
     volumes:
       - ${FORGE_DATA_ROOT:-./forge-data}:/forge-data
       - /var/run/docker.sock:/var/run/docker.sock   # manages project containers
@@ -181,15 +230,20 @@ services:
     # NOT exposed to internet — opencode talks to it on the internal network
 
   forge-fe:
+    # Build context is the REPO ROOT, not ./forge-ui, because forge-ui is a
+    # bun workspace member of opencode/ and resolves workspace:* + catalog:
+    # deps through it. See forge-ui/Dockerfile for the full reasoning.
     build:
-      context: ./forge-ui
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: forge-ui/Dockerfile
+      args:
+        # Vite inlines VITE_* at BUILD time. Pass them as build args, not
+        # runtime env, or the bundle ships with the dev defaults.
+        VITE_API_URL: ${API_URL:-http://api.forge.localhost}
+        VITE_PREVIEW_DOMAIN: ${PREVIEW_DOMAIN:-preview.lvh.me}
+        VITE_OPENCODE_URL: ${OPENCODE_URL:-http://opencode:7777}
     container_name: forge-fe
     restart: unless-stopped
-    environment:
-      - VITE_API_URL=${API_URL:-http://api.forge.localhost}
-      - VITE_PREVIEW_DOMAIN=${PREVIEW_DOMAIN:-preview.forge.localhost}
-      - VITE_OPENCODE_URL=${OPENCODE_URL:-http://opencode:7777}
     networks:
       - forge-net
     labels:
@@ -202,13 +256,12 @@ services:
 
 networks:
   forge-net:
+    # Pinned name so project containers (started later by forge-server) can
+    # `--network forge-net` regardless of the compose project name. Compose
+    # creates and owns it; we don't require the user to run `docker network
+    # create` before `up`.
     name: forge-net
-    # external: true → use the existing network instead of compose trying to
-    # (re)create one with managed labels. The network was first created
-    # outside compose (likely a prior dev.sh run), so compose refuses to
-    # reconcile labels and prints the "incorrect label" warning. Marking it
-    # external silences the warning AND avoids reshuffling running services.
-    external: true
+    driver: bridge
 
 volumes:
   postgres-data:
