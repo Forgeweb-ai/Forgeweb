@@ -1,0 +1,2688 @@
+<!doctype html>
+<html lang="en" data-color-scheme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Forge — Open-source, self-hosted alternative to Lovable &amp; v0.dev</title>
+  <meta name="description" content="The open-source, self-hosted AI webapp builder. Chat with an AI agent, ship full webapps, bring your own API keys. Free to run on your own machine. Built on opencode. BSL 1.1." />
+
+  <!-- Social preview -->
+  <meta property="og:title" content="Forge — open-source alternative to Lovable &amp; v0.dev" />
+  <meta property="og:description" content="Self-hosted AI webapp builder. Bring your own keys. Free default model. Own your code and your tokens." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="/landing/img/og-card.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Forge — open-source alternative to Lovable &amp; v0.dev" />
+  <meta name="twitter:description" content="Self-hosted AI webapp builder. Bring your own keys. Free default model. Own your code and your tokens." />
+
+  <!-- Preconnect to font CDN (progressive — page renders fine without these) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ═══════════════════════════════════════════════════════════
+       FORGE LANDING — copies forge-ui's Loom design tokens.
+       Source of truth for tokens: forge-ui/src/index.css.
+       Keep these in sync manually for now; if they drift, the
+       page still works, it just looks slightly off-brand.
+       ═══════════════════════════════════════════════════════════ */
+
+    :root {
+      /* Loom Atelier — light */
+      --bg:          oklch(0.965 0.008 75);
+      --bg-2:        oklch(0.94 0.01 75);
+      --surface:     oklch(0.995 0.004 80);
+      --surface-2:   oklch(0.985 0.006 75);
+      --ink:         oklch(0.18 0.015 50);
+      --ink-2:       oklch(0.32 0.012 55);
+      --muted:       oklch(0.52 0.012 60);
+      --faint:       oklch(0.72 0.01 65);
+      --hair:        oklch(0.88 0.008 70);
+      --hair-2:      oklch(0.82 0.01 70);
+      --accent:      oklch(0.62 0.155 45);
+      --accent-ink:  oklch(0.99 0.005 80);
+      --accent-soft: oklch(0.92 0.04 50);
+
+      --radius-sm: 6px;
+      --radius:    10px;
+      --radius-lg: 16px;
+      --radius-xl: 22px;
+
+      --font-display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+      --font-ui:      "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono:    "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+      --maxw: 1120px;
+      --gutter: clamp(20px, 4vw, 56px);
+    }
+
+    /* Loom Midnight — dark. System pref OR explicit data-color-scheme="dark" */
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-color-scheme="light"]) {
+        --bg:          oklch(0.16 0.018 260);
+        --bg-2:        oklch(0.21 0.02 260);
+        --surface:     oklch(0.22 0.018 260);
+        --surface-2:   oklch(0.26 0.02 260);
+        --ink:         oklch(0.96 0.006 80);
+        --ink-2:       oklch(0.82 0.008 80);
+        --muted:       oklch(0.62 0.012 75);
+        --faint:       oklch(0.45 0.014 260);
+        --hair:        oklch(0.32 0.018 260);
+        --hair-2:      oklch(0.4 0.02 260);
+        --accent:      oklch(0.75 0.16 75);
+        --accent-soft: oklch(0.3 0.05 75);
+      }
+    }
+    [data-color-scheme="dark"] {
+      --bg:          oklch(0.16 0.018 260);
+      --bg-2:        oklch(0.21 0.02 260);
+      --surface:     oklch(0.22 0.018 260);
+      --surface-2:   oklch(0.26 0.02 260);
+      --ink:         oklch(0.96 0.006 80);
+      --ink-2:       oklch(0.82 0.008 80);
+      --muted:       oklch(0.62 0.012 75);
+      --faint:       oklch(0.45 0.014 260);
+      --hair:        oklch(0.32 0.018 260);
+      --hair-2:      oklch(0.4 0.02 260);
+      --accent:      oklch(0.75 0.16 75);
+      --accent-soft: oklch(0.3 0.05 75);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-ui);
+      font-size: 16px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code, pre { font-family: var(--font-mono); font-size: 0.92em; }
+    pre {
+      background: var(--surface-2);
+      border: 1px solid var(--hair);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      overflow-x: auto;
+      line-height: 1.55;
+      margin: 16px 0;
+    }
+    code:not(pre code) {
+      background: var(--surface-2);
+      border: 1px solid var(--hair);
+      border-radius: var(--radius-sm);
+      padding: 1px 6px;
+      font-size: 0.88em;
+    }
+
+    /* ── Layout ─────────────────────────────────────────────────────────── */
+    .container {
+      max-width: var(--maxw);
+      margin: 0 auto;
+      padding: 0 var(--gutter);
+    }
+    section { padding: 80px 0; border-top: 1px solid var(--hair); }
+    section:first-of-type { border-top: 0; }
+
+    /* ── Top nav ────────────────────────────────────────────────────────── */
+    .nav {
+      position: sticky; top: 0; z-index: 50;
+      background: color-mix(in oklch, var(--bg) 88%, transparent);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--hair);
+    }
+    .nav-inner {
+      display: flex; align-items: center; gap: 28px;
+      padding: 14px var(--gutter);
+      max-width: var(--maxw); margin: 0 auto;
+    }
+    .nav-brand {
+      display: inline-flex; align-items: center; gap: 10px;
+      font-family: var(--font-display); font-size: 22px;
+      color: var(--ink); text-decoration: none;
+      letter-spacing: -0.01em;
+    }
+    .nav-brand .mark {
+      width: 22px; height: 22px; border-radius: 6px;
+      background: var(--accent);
+      box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--ink) 15%, transparent);
+    }
+    .nav-links {
+      display: flex; gap: 22px; margin-left: auto; align-items: center;
+      font-size: 14px;
+    }
+    .nav-links a {
+      color: var(--ink-2);
+      text-decoration: none;
+    }
+    .nav-links a:hover { color: var(--ink); }
+    .nav-cta {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 7px 14px; border-radius: 999px;
+      background: var(--ink); color: var(--bg);
+      font-weight: 600; font-size: 13px;
+      line-height: 1;
+    }
+    .nav-cta:hover { text-decoration: none; opacity: 0.92; }
+    .nav-cta svg { width: 14px; height: 14px; flex: none; }
+
+    @media (max-width: 720px) {
+      .nav-links a:not(.nav-cta) { display: none; }
+    }
+
+    /* ── Hero ───────────────────────────────────────────────────────────── */
+    .hero { padding: 96px 0 56px; }
+    .hero-eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 5px 12px;
+      font-size: 12px; font-weight: 500; letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: var(--accent-soft);
+      border-radius: 999px;
+      margin-bottom: 24px;
+    }
+    .hero h1 {
+      font-family: var(--font-display);
+      font-weight: 400;
+      font-size: clamp(40px, 6vw, 64px);
+      line-height: 1.04;
+      letter-spacing: -0.02em;
+      margin: 0 0 22px;
+      max-width: 18ch;
+      color: var(--ink);
+    }
+    .hero h1 em {
+      font-style: italic;
+      color: var(--accent);
+    }
+    .hero-sub {
+      font-size: clamp(17px, 1.6vw, 19px);
+      color: var(--muted);
+      max-width: 56ch;
+      margin: 0 0 32px;
+    }
+    .hero-ctas { display: flex; gap: 12px; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 20px;
+      border-radius: 999px;
+      font-size: 15px; font-weight: 500;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: transform .15s ease, background .15s ease;
+    }
+    .btn:hover { text-decoration: none; transform: translateY(-1px); }
+    .btn-primary { background: var(--ink); color: var(--bg); }
+    .btn-secondary {
+      background: transparent; color: var(--ink);
+      border-color: var(--hair-2);
+    }
+    .btn-secondary:hover { background: var(--surface-2); }
+    .hero-shot {
+      margin-top: 56px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--hair);
+      background: var(--surface);
+      overflow: hidden;
+      box-shadow: 0 1px 2px rgba(40,30,15,.04), 0 24px 50px -18px rgba(40,30,15,.12);
+    }
+    .hero-shot img {
+      display: block; width: 100%; height: auto;
+    }
+    .hero-shot-placeholder {
+      aspect-ratio: 16/9;
+      display: grid; place-items: center;
+      color: var(--faint);
+      font-family: var(--font-mono); font-size: 13px;
+      background:
+        repeating-linear-gradient(45deg,
+          transparent 0 12px,
+          color-mix(in oklch, var(--hair) 40%, transparent) 12px 13px);
+    }
+
+    /* ── Built-on-opencode strip ────────────────────────────────────────── */
+    .builton {
+      padding: 28px 0;
+      border-top: 1px solid var(--hair);
+      border-bottom: 1px solid var(--hair);
+      background: var(--surface-2);
+    }
+    .builton-inner {
+      display: flex; align-items: center; gap: 18px;
+      font-size: 14px; color: var(--ink-2);
+    }
+    .builton strong { color: var(--ink); font-weight: 600; }
+    .builton-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: 999px;
+      background: var(--bg); border: 1px solid var(--hair);
+      font-size: 12px; color: var(--muted);
+    }
+
+    /* ── Section heading style ──────────────────────────────────────────── */
+    .section-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 12px; font-weight: 500;
+      color: var(--accent);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+    h2 {
+      font-family: var(--font-display);
+      font-weight: 400;
+      font-size: clamp(28px, 3.6vw, 40px);
+      line-height: 1.1;
+      letter-spacing: -0.015em;
+      margin: 0 0 16px;
+      color: var(--ink);
+    }
+    .section-lead {
+      color: var(--muted);
+      font-size: 17px;
+      max-width: 62ch;
+      margin: 0 0 36px;
+    }
+    h3 {
+      font-family: var(--font-display);
+      font-weight: 400;
+      font-size: 22px;
+      letter-spacing: -0.01em;
+      margin: 28px 0 10px;
+      color: var(--ink);
+    }
+    p { color: var(--ink-2); margin: 0 0 14px; max-width: 70ch; }
+    p strong { color: var(--ink); font-weight: 600; }
+    ul, ol { color: var(--ink-2); padding-left: 22px; }
+    ul li, ol li { margin-bottom: 6px; }
+
+    /* ── Showcase ───────────────────────────────────────────────────────── */
+    .showcase-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 24px;
+    }
+    @media (max-width: 720px) { .showcase-grid { grid-template-columns: 1fr; } }
+    .show-card {
+      border: 1px solid var(--hair);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      background: var(--surface);
+      display: flex; flex-direction: column;
+      transition: transform .15s ease, box-shadow .15s ease;
+    }
+    .show-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px -16px color-mix(in oklch, var(--ink) 25%, transparent);
+    }
+    .show-thumb {
+      aspect-ratio: 16/10;
+      background: var(--bg-2);
+      border-bottom: 1px solid var(--hair);
+      display: grid; place-items: center;
+      color: var(--faint);
+      font-family: var(--font-mono); font-size: 12px;
+    }
+    .show-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .show-body { padding: 18px 20px 20px; }
+    .show-body h3 { margin: 0 0 6px; font-size: 19px; }
+    .show-desc { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
+    .show-meta {
+      display: flex; gap: 8px; flex-wrap: wrap;
+      padding-top: 12px;
+      border-top: 1px solid var(--hair);
+    }
+    .badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: var(--bg-2);
+      border: 1px solid var(--hair);
+      font-size: 11px;
+      color: var(--ink-2);
+      font-family: var(--font-mono);
+    }
+    .badge-label {
+      color: var(--muted); font-weight: 500;
+      letter-spacing: 0.02em;
+    }
+    .show-link {
+      display: inline-block; margin-top: 14px;
+      font-size: 13px; color: var(--accent);
+    }
+
+    /* ── How it works ───────────────────────────────────────────────────── */
+    .arch-figure {
+      margin: 28px 0 36px;
+      padding: 28px;
+      background: var(--surface);
+      border: 1px solid var(--hair);
+      border-radius: var(--radius-lg);
+    }
+    .arch-figure svg { display: block; width: 100%; height: auto; }
+    .arch-caption {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+      font-family: var(--font-mono);
+    }
+
+    .docgrid {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 28px 36px;
+    }
+    @media (max-width: 720px) { .docgrid { grid-template-columns: 1fr; } }
+    .doc-card {
+      padding-top: 4px;
+    }
+    .doc-card h3 { margin-top: 0; }
+
+    /* ── BYOK table ─────────────────────────────────────────────────────── */
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--hair);
+      border-radius: var(--radius);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th, td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--hair);
+    }
+    th {
+      background: var(--surface-2);
+      font-weight: 600; color: var(--ink);
+      font-size: 13px;
+      letter-spacing: 0.02em;
+    }
+    tr:last-child td { border-bottom: 0; }
+    td code { font-size: 12px; }
+
+    /* ── Install ────────────────────────────────────────────────────────── */
+    #install { background: var(--surface-2); }
+    .install-steps {
+      counter-reset: step;
+      list-style: none;
+      padding: 0; margin: 0;
+    }
+    .install-steps > li {
+      counter-increment: step;
+      position: relative;
+      padding: 18px 0 18px 56px;
+      border-bottom: 1px solid var(--hair);
+    }
+    .install-steps > li:last-child { border-bottom: 0; }
+    .install-steps > li::before {
+      content: counter(step);
+      position: absolute; left: 0; top: 22px;
+      width: 32px; height: 32px;
+      display: grid; place-items: center;
+      border-radius: 999px;
+      background: var(--ink); color: var(--bg);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .install-steps h3 { margin: 0 0 6px; }
+
+    /* ── Docs collapsibles ──────────────────────────────────────────────── */
+    details {
+      border: 1px solid var(--hair);
+      border-radius: var(--radius);
+      padding: 0;
+      margin: 0 0 12px;
+      background: var(--surface);
+    }
+    summary {
+      cursor: pointer;
+      padding: 16px 20px;
+      font-weight: 500;
+      color: var(--ink);
+      list-style: none;
+      display: flex; align-items: center; gap: 10px;
+    }
+    summary::-webkit-details-marker { display: none; }
+    summary::before {
+      content: "→";
+      color: var(--muted);
+      transition: transform .15s ease;
+      font-family: var(--font-mono);
+    }
+    details[open] summary::before { transform: rotate(90deg); color: var(--accent); }
+    details > *:not(summary) { padding: 0 20px; }
+    details > *:last-child { padding-bottom: 18px; }
+
+    /* ── Footer ─────────────────────────────────────────────────────────── */
+    footer {
+      padding: 48px 0 56px;
+      border-top: 1px solid var(--hair);
+      background: var(--surface-2);
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 2fr repeat(3, 1fr);
+      gap: 36px;
+      margin-bottom: 36px;
+    }
+    @media (max-width: 720px) {
+      .footer-grid { grid-template-columns: 1fr 1fr; }
+    }
+    .footer-grid h4 {
+      margin: 0 0 12px;
+      font-size: 13px; font-weight: 600;
+      color: var(--ink);
+      letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    .footer-grid a { color: var(--ink-2); display: block; padding: 4px 0; }
+    .footer-grid a:hover { color: var(--accent); text-decoration: none; }
+    .footer-meta {
+      padding-top: 24px;
+      border-top: 1px solid var(--hair);
+      display: flex; justify-content: space-between; gap: 18px;
+      flex-wrap: wrap;
+    }
+
+    /* ── Theme toggle ─────────────────────────────────────────────────────
+       Sun in light mode, moon in dark mode. CSS shows the opposite-of-current
+       so the icon advertises what the click WILL DO, not what's already on. */
+    .theme-toggle {
+      width: 32px; height: 32px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: transparent; border: 1px solid var(--hair-2);
+      color: var(--ink-2);
+      border-radius: 999px; cursor: pointer;
+      padding: 0;
+      transition: background .15s ease, color .15s ease, border-color .15s ease;
+    }
+    .theme-toggle:hover {
+      background: var(--surface-2);
+      color: var(--ink);
+      border-color: var(--hair-2);
+    }
+    .theme-toggle svg { width: 14px; height: 14px; display: block; }
+    /* Show MOON when in light (clicking goes to dark);
+       show SUN when in dark (clicking goes to light). */
+    .theme-toggle .sun  { display: none; }
+    .theme-toggle .moon { display: block; }
+    [data-color-scheme="dark"] .theme-toggle .sun  { display: block; }
+    [data-color-scheme="dark"] .theme-toggle .moon { display: none; }
+
+  /* ═══════════════════════════════════════════════════════════
+     LIFTED FROM forge-ui/src/pages/landing.tsx STYLES.
+     :root scoped to .forge-landing-root; theme selector
+     harmonized to [data-color-scheme="dark"]. Keep in sync by
+     re-running the extract pass if you change the source.
+     ═══════════════════════════════════════════════════════════ */
+  .forge-landing-root {
+    /* base */
+    --bg: #f7f3ea;
+    --panel: #f1ece1;
+    --surface-1: #ffffff;
+    --surface-2: #fbf8f1;
+    --surface-3: #faf6ec;
+
+    --ink:    #15140f;
+    --ink-2:  #2b2a25;
+    --on-ink: #ffffff;
+    --muted:  #8a8175;
+    --muted-2: #6b6358;
+
+    --line:   #e6dfd0;
+    --line-2: #f0ead9;
+    --line-3: #efe7d4;
+    --line-strong: #d4cab2;
+
+    --brand-1: oklch(0.78 0.15 55);
+    --brand-2: oklch(0.66 0.19 32);
+    --brand-3: oklch(0.58 0.21 18);
+
+    --green:     oklch(0.55 0.14 145);
+    --green-bg:  oklch(0.95 0.04 145);
+    --green-bd:  oklch(0.85 0.07 145);
+    --green-ink: oklch(0.36 0.10 145);
+
+    --editor-bg: #15140f;
+    --editor-fg: #c8c0a8;
+    --code-c:    #6b6358;
+
+    --shadow:    0 1px 2px rgba(40,30,15,.04), 0 8px 28px -8px rgba(40,30,15,.10);
+    --shadow-md: 0 1px 0 rgba(0,0,0,.02), 0 14px 30px -10px rgba(40,30,15,.18);
+    --shadow-lg: 0 1px 0 rgba(0,0,0,.02), 0 22px 50px -16px rgba(40,30,15,.22);
+
+    color-scheme: light;
+  }
+
+  [data-color-scheme="dark"] {
+    --bg:        #0f0e0a;
+    --panel:     #1a1813;
+    --surface-1: #1d1b15;
+    --surface-2: #161410;
+    --surface-3: #221f18;
+
+    --ink:    #f5efe0;
+    --ink-2:  #d8d0bd;
+    --on-ink: #15140f;
+    --muted:  #807968;
+    --muted-2: #a39c8a;
+
+    --line:   #2c2920;
+    --line-2: #221f18;
+    --line-3: #2a2720;
+    --line-strong: #3b3729;
+
+    --green-bg:  oklch(0.24 0.05 145);
+    --green-bd:  oklch(0.35 0.08 145);
+    --green-ink: oklch(0.82 0.13 145);
+
+    --editor-bg: #0a0907;
+    --editor-fg: #c8c0a8;
+    --code-c:    #9a9385;
+
+    --shadow:    0 1px 2px rgba(0,0,0,.4), 0 10px 30px -8px rgba(0,0,0,.55);
+    --shadow-md: 0 1px 0 rgba(0,0,0,.3), 0 14px 30px -10px rgba(0,0,0,.6);
+    --shadow-lg: 0 1px 0 rgba(0,0,0,.3), 0 22px 50px -16px rgba(0,0,0,.7);
+
+    color-scheme: dark;
+  }
+
+  .forge-landing-root, .forge-landing-root *,
+  .forge-landing-root .showcase, .forge-landing-root .prompt, .forge-landing-root .workspace,
+  .forge-landing-root .ws-bar, .forge-landing-root .chat, .forge-landing-root .preview, .forge-landing-root .scene,
+  .forge-landing-root .res-card, .forge-landing-root .map-node, .forge-landing-root .des-card, .forge-landing-root .tree,
+  .forge-landing-root .build-bar, .forge-landing-root .pub-card, .forge-landing-root .sub-chip,
+  .forge-landing-root .step h3, .forge-landing-root .step p, .forge-landing-root .step .tick, .forge-landing-root .step .tick .num,
+  .forge-landing-root .header, .forge-landing-root .header .btn,
+  .forge-landing-root .header .iconbtn, .forge-landing-root .cta-row .btn, .forge-landing-root .ws-status, .forge-landing-root .prompt-text, .forge-landing-root .msg .body,
+  .forge-landing-root .msg .body .sub, .forge-landing-root .src, .forge-landing-root .corner, .forge-landing-root .editor, .forge-landing-root .scene-idle, .forge-landing-root .scene-h, .forge-landing-root .scene-h::after,
+  .forge-landing-root .res-card .t, .forge-landing-root .res-card .u, .forge-landing-root .res-card .meta, .forge-landing-root .map-node .pill, .forge-landing-root .ln, .forge-landing-root .ln.dark,
+  .forge-landing-root .tree .f::before, .forge-landing-root .build-bar .lbl, .forge-landing-root .pub-cta .url, .forge-landing-root .pub-cta .btn,
+  .forge-landing-root .chat::before, .forge-landing-root .prompt, .forge-landing-root .prompt-row, .forge-landing-root .chip {
+    transition-property: background-color, color, border-color, box-shadow;
+    transition-duration: .3s;
+    transition-timing-function: ease;
+  }
+  .forge-landing-root * { box-sizing: border-box; }
+  .forge-landing-root {
+    margin: 0; padding: 0; background: var(--bg); color: var(--ink);
+    font-family: 'Geist', system-ui, sans-serif;
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+    /* The app shell has body overflow:hidden + a fixed-height #root, so the
+       landing page owns its own scroll. height:100% fills the shell and lets
+       position:sticky on the header work against this scrolling container. */
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+  }
+  .forge-landing-root .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
+
+  .forge-landing-root .page { max-width: 1280px; margin: 0 auto; padding: 32px 56px 96px; }
+
+  /* HEADER */
+  .forge-landing-root .header {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 22px 56px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 24px;
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(247, 243, 234, 0.92);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid transparent;
+    transition: border-color .25s ease, background .25s ease;
+  }
+  [data-color-scheme="dark"] .forge-landing-root .header {
+    background: rgba(15, 14, 10, 0.92);
+  }
+  .forge-landing-root .header.scrolled { border-bottom-color: var(--line); }
+  .forge-landing-root .logo {
+    display: inline-flex; align-items: center; gap: 10px;
+    text-decoration: none; color: var(--ink);
+    font-weight: 700; font-size: 19px; letter-spacing: -0.02em;
+  }
+  .forge-landing-root .logo .mark {
+    width: 28px; height: 28px; border-radius: 7px;
+    background-image: url('/forge-f-light.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  [data-color-scheme="dark"] .forge-landing-root .logo .mark {
+    background-image: url('/forge-f-dark.png');
+  }
+  .forge-landing-root .header-right { display: flex; align-items: center; gap: 4px; }
+  .forge-landing-root .header .btn {
+    border: 0; background: transparent;
+    font: inherit; cursor: pointer;
+    height: 38px; padding: 0 16px;
+    border-radius: 10px;
+    font-size: 14px; font-weight: 500;
+    color: var(--ink);
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .forge-landing-root .header .btn.ghost:hover { background: color-mix(in oklch, var(--ink) 6%, transparent); }
+  .forge-landing-root .header .btn.primary {
+    background: var(--ink); color: var(--on-ink);
+    box-shadow: 0 1px 0 rgba(255,255,255,.18) inset, 0 1px 2px rgba(0,0,0,.08);
+    transition: transform .15s ease, background .2s;
+  }
+  .forge-landing-root .header .btn.primary:hover { transform: translateY(-1px); }
+  .forge-landing-root .header .iconbtn {
+    width: 38px; height: 38px; border-radius: 10px;
+    border: 0; background: transparent;
+    display: inline-grid; place-items: center;
+    cursor: pointer;
+    color: var(--ink);
+    margin-right: 4px;
+  }
+  .forge-landing-root .header .iconbtn:hover { background: color-mix(in oklch, var(--ink) 6%, transparent); }
+  .forge-landing-root .header .iconbtn svg { width: 18px; height: 18px; }
+  .forge-landing-root .header .iconbtn .moon { display: none; }
+  [data-color-scheme="dark"] .forge-landing-root .header .iconbtn .sun { display: none; }
+  [data-color-scheme="dark"] .forge-landing-root .header .iconbtn .moon { display: block; }
+
+  /* CTA row below title */
+  .forge-landing-root .cta-row {
+    display: flex; align-items: center; gap: 14px;
+    margin: 0 0 72px;
+    flex-wrap: wrap;
+  }
+  .forge-landing-root .cta-row .btn {
+    border: 0; background: transparent;
+    font: inherit; cursor: pointer;
+    height: 50px; padding: 0 22px;
+    border-radius: 12px;
+    font-size: 16px; font-weight: 600;
+    display: inline-flex; align-items: center; gap: 8px;
+    letter-spacing: -0.005em;
+  }
+  .forge-landing-root .cta-row .btn.primary {
+    background: var(--ink); color: var(--on-ink);
+    box-shadow: 0 1px 0 rgba(255,255,255,.18) inset, 0 8px 22px -8px rgba(40,30,15,.35);
+    transition: transform .15s ease, box-shadow .2s;
+  }
+  .forge-landing-root .cta-row .btn.primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 1px 0 rgba(255,255,255,.18) inset, 0 12px 26px -8px rgba(40,30,15,.45);
+  }
+  .forge-landing-root .cta-row .btn.primary .arrow { width: 14px; height: 14px; transition: transform .2s ease; }
+  .forge-landing-root .cta-row .btn.primary:hover .arrow { transform: translateX(3px); }
+  .forge-landing-root .cta-row .btn.ghost {
+    color: var(--ink);
+    border: 1px solid var(--line);
+    background: var(--surface-1);
+  }
+  .forge-landing-root .cta-row .btn.ghost:hover { background: var(--surface-2); }
+  .forge-landing-root .cta-row .meta {
+    margin-left: 6px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* trust strip */
+  .forge-landing-root .logos {
+    display: flex; align-items: center; justify-content: center;
+    gap: 64px; flex-wrap: wrap;
+    color: var(--muted);
+    padding-bottom: 64px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 80px;
+  }
+  .forge-landing-root .logos .tag {
+    width: 100%; text-align: center;
+    font-size: 14px; letter-spacing: 0.02em;
+    margin-bottom: 28px;
+    color: #6b6358;
+  }
+  .forge-landing-root .logos .brand {
+    font-weight: 700; font-size: 22px;
+    opacity: .55; letter-spacing: -0.01em;
+    transition: opacity .3s;
+  }
+  .forge-landing-root .logos .brand:hover { opacity: .9; }
+
+  .forge-landing-root h1.title {
+    font-size: 68px; line-height: 1.02; font-weight: 700;
+    letter-spacing: -0.035em;
+    margin: 56px 0 48px;
+  }
+
+  /* split */
+  .forge-landing-root .split {
+    display: grid;
+    grid-template-columns: 1.32fr 1fr;
+    gap: 72px;
+    align-items: stretch;
+  }
+
+  /* SHOWCASE */
+  .forge-landing-root .showcase {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    background: var(--panel);
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .forge-landing-root .showcase::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(120% 80% at 50% -20%, rgba(255,255,255,.6), transparent 60%);
+    pointer-events: none;
+  }
+
+  /* stage with two layers sharing one cell */
+  .forge-landing-root .stage {
+    position: absolute; inset: 0;
+    display: grid;
+    grid-template: 1fr / 1fr;
+    place-items: center;
+  }
+  .forge-landing-root .stage > .prompt,
+  .forge-landing-root .stage > .workspace { grid-area: 1 / 1; }
+
+  /* PROMPT card */
+  .forge-landing-root .prompt {
+    width: 64%;
+    max-width: 460px;
+    background: var(--surface-1);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 18px 18px 12px;
+    box-shadow: var(--shadow-md);
+    transition: opacity .5s ease, transform .6s cubic-bezier(.2,.7,.2,1);
+    z-index: 2;
+  }
+  .forge-landing-root .prompt-text {
+    min-height: 58px; font-size: 16px; line-height: 1.45;
+    color: var(--ink); letter-spacing: -0.005em;
+  }
+  .forge-landing-root .prompt-text .ph { color: var(--muted); }
+  .forge-landing-root .prompt-text .kw { color: var(--brand-3); }
+  .forge-landing-root .caret {
+    display: inline-block; width: 2px; height: 1.05em;
+    background: var(--ink); vertical-align: -2px; margin-left: 1px;
+    animation: blink 1s steps(2,end) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  .forge-landing-root .prompt-row {
+    display: flex; align-items: center; gap: 10px;
+    padding-top: 12px; border-top: 1px solid var(--line-2); margin-top: 8px;
+  }
+  .forge-landing-root .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 28px; padding: 0 12px; border-radius: 999px;
+    background: var(--surface-3); border: 1px solid var(--line-3);
+    font-size: 12.5px; color: var(--muted-2);
+  }
+  .forge-landing-root .chip.icon { width: 28px; padding: 0; justify-content: center; }
+  .forge-landing-root .submit {
+    margin-left: auto;
+    width: 32px; height: 32px; border-radius: 999px;
+    display: grid; place-items: center;
+    background: var(--ink); color: var(--on-ink);
+    transition: transform .25s, background .25s;
+  }
+  .forge-landing-root .submit.fire {
+    background: linear-gradient(135deg, var(--brand-1), var(--brand-3));
+    transform: scale(1.08);
+  }
+  .forge-landing-root .submit svg { width: 14px; height: 14px; }
+
+  /* WORKSPACE — chat + preview */
+  .forge-landing-root .workspace {
+    width: calc(100% - 36px);
+    height: calc(100% - 36px);
+    background: var(--surface-1);
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-lg);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(16px) scale(.97);
+    transition: opacity .5s ease, transform .6s cubic-bezier(.2,.7,.2,1);
+  }
+
+  .forge-landing-root .ws-bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--line-2);
+    background: var(--surface-2);
+    font-size: 11px;
+  }
+  .forge-landing-root .dot { width: 9px; height: 9px; border-radius: 999px; background: var(--line); }
+  .forge-landing-root .ws-title {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-left: 4px;
+    font-family: 'Geist Mono', monospace; font-size: 11px;
+    color: var(--muted-2);
+  }
+  .forge-landing-root .ws-title .glyph {
+    width: 12px; height: 12px; border-radius: 3px;
+    background: linear-gradient(135deg, var(--brand-1), var(--brand-3));
+  }
+  .forge-landing-root .ws-status {
+    margin-left: auto;
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: 'Geist Mono', monospace; font-size: 10.5px;
+    color: var(--muted-2);
+    padding: 4px 8px; border-radius: 999px;
+    background: var(--surface-1); border: 1px solid var(--line-2);
+  }
+  .forge-landing-root .ws-status .pulse {
+    width: 6px; height: 6px; border-radius: 999px;
+    background: var(--brand-2);
+    box-shadow: 0 0 0 0 rgba(0,0,0,0);
+    animation: pulse-fire 1.6s infinite;
+  }
+  .forge-landing-root .ws-status.live { background: var(--green-bg); border-color: var(--green-bd); color: var(--green-ink); }
+  .forge-landing-root .ws-status.live .pulse {
+    background: var(--green);
+    animation: pulse-green 1.6s infinite;
+  }
+  @keyframes pulse-fire {
+    0% { box-shadow: 0 0 0 0 oklch(0.66 0.19 32 / .55); }
+    70% { box-shadow: 0 0 0 7px oklch(0.66 0.19 32 / 0); }
+    100% { box-shadow: 0 0 0 0 oklch(0.66 0.19 32 / 0); }
+  }
+  @keyframes pulse-green {
+    0% { box-shadow: 0 0 0 0 oklch(0.55 0.14 145 / .55); }
+    70% { box-shadow: 0 0 0 7px oklch(0.55 0.14 145 / 0); }
+    100% { box-shadow: 0 0 0 0 oklch(0.55 0.14 145 / 0); }
+  }
+
+  .forge-landing-root .ws-body {
+    flex: 1; display: grid;
+    grid-template-columns: 42% 58%;
+    min-height: 0;
+  }
+
+  /* CHAT column */
+  .forge-landing-root .chat {
+    border-right: 1px solid var(--line-2);
+    padding: 14px 14px 14px;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    gap: 12px;
+    background: var(--surface-2);
+    position: relative;
+  }
+  .forge-landing-root .chat::before {
+    content: ''; position: absolute; left: 0; right: 0; top: 0; height: 28px;
+    background: linear-gradient(180deg, var(--surface-2), transparent);
+    pointer-events: none; z-index: 2;
+  }
+  .forge-landing-root .chat-scroll {
+    flex: 1; display: flex; flex-direction: column;
+    justify-content: flex-end;
+    gap: 10px;
+    overflow: hidden;
+    min-height: 0;
+  }
+  .forge-landing-root .msg {
+    display: grid; grid-template-columns: 20px 1fr; gap: 10px;
+    opacity: 0; transform: translateY(8px);
+    animation: msgIn .45s cubic-bezier(.2,.7,.2,1) forwards;
+  }
+  @keyframes msgIn { to { opacity: 1; transform: none; } }
+  .forge-landing-root .msg .ava {
+    width: 20px; height: 20px; border-radius: 6px;
+    margin-top: 1px;
+    display: grid; place-items: center;
+    font-size: 10px;
+    font-family: 'Geist Mono', monospace;
+  }
+  .forge-landing-root .msg.user .ava { background: var(--ink); color: var(--on-ink); }
+  .forge-landing-root .msg.agent .ava {
+    background: linear-gradient(135deg, var(--brand-1), var(--brand-3));
+    color: #fff;
+  }
+  .forge-landing-root .msg .body { font-size: 12.5px; line-height: 1.5; color: var(--ink-2); letter-spacing: -0.003em; }
+  .forge-landing-root .msg.user .body { color: var(--ink); }
+  .forge-landing-root .msg .body .tl { font-weight: 600; color: var(--ink); }
+  .forge-landing-root .msg .body .sub { color: var(--muted-2); font-size: 12px; margin-top: 2px; }
+  .forge-landing-root .msg .body .sub .kw { color: var(--brand-3); }
+
+  /* compact (completed) message form */
+  .forge-landing-root .msg.compact .body .sub,
+  .forge-landing-root .msg.compact .body .sources,
+  .forge-landing-root .msg.compact .body .plan { display: none; }
+  .forge-landing-root .msg.compact .body .tl { font-weight: 500; color: var(--muted-2); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
+  .forge-landing-root .msg.compact .body .tl::before {
+    content: '✓'; display: inline-grid; place-items: center;
+    width: 12px; height: 12px; border-radius: 999px;
+    background: var(--green); color: #fff;
+    font-size: 9px; font-weight: 700;
+  }
+  .forge-landing-root .msg.compact { opacity: 0.85; }
+  .forge-landing-root .msg.compact .ava { opacity: 0.6; }
+
+  /* source chips inside research msg */
+  .forge-landing-root .sources { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+  .forge-landing-root .src {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 7px; border-radius: 6px;
+    background: var(--surface-1); border: 1px solid var(--line-2);
+    font-size: 10.5px; color: var(--muted-2);
+    font-family: 'Geist Mono', monospace;
+    opacity: 0; transform: translateY(4px);
+    animation: srcIn .35s ease forwards;
+  }
+  .forge-landing-root .src .fav { width: 7px; height: 7px; border-radius: 2px; }
+  @keyframes srcIn { to { opacity: 1; transform: none; } }
+
+  /* plan checklist inside plan msg */
+  .forge-landing-root .plan {
+    margin-top: 8px;
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  .forge-landing-root .plan-item {
+    display: grid; grid-template-columns: 14px 1fr; gap: 8px;
+    font-size: 11.5px; color: var(--ink-2);
+    align-items: center;
+    opacity: 0; transform: translateX(-4px);
+    animation: planIn .35s ease forwards;
+  }
+  .forge-landing-root .plan-item .box {
+    width: 12px; height: 12px; border-radius: 4px;
+    border: 1.5px solid var(--line-strong);
+    display: grid; place-items: center;
+    background: var(--surface-1);
+    transition: background .25s, border-color .25s;
+  }
+  .forge-landing-root .plan-item.done .box {
+    background: var(--ink); border-color: var(--ink);
+  }
+  .forge-landing-root .plan-item .box svg { width: 8px; height: 8px; color: var(--on-ink); opacity: 0; transition: opacity .2s; }
+  .forge-landing-root .plan-item.done .box svg { opacity: 1; }
+  @keyframes planIn { to { opacity: 1; transform: none; } }
+
+  /* PREVIEW column scenes */
+  .forge-landing-root .preview {
+    position: relative;
+    background: var(--surface-1);
+    overflow: hidden;
+  }
+  .forge-landing-root .scene {
+    position: absolute; inset: 0;
+    padding: 16px;
+    display: flex; flex-direction: column;
+    gap: 10px;
+    opacity: 0;
+    transition: opacity .45s ease;
+    pointer-events: none;
+  }
+  .forge-landing-root .scene.on { opacity: 1; pointer-events: auto; }
+  .forge-landing-root .scene-h {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .forge-landing-root .scene-h::after {
+    content: ''; flex: 1; height: 1px; background: var(--line-2);
+  }
+
+  /* IDLE scene (before submit) */
+  .forge-landing-root .scene-idle {
+    background:
+      radial-gradient(40% 50% at 30% 30%, rgba(255,255,255,.06), transparent 70%),
+      linear-gradient(180deg, var(--surface-2), var(--surface-1));
+    align-items: center; justify-content: center;
+    color: var(--muted);
+    font-family: 'Geist Mono', monospace; font-size: 11px;
+  }
+
+  /* RESEARCH scene — list of source cards popping in */
+  .forge-landing-root .res-list {
+    display: flex; flex-direction: column; gap: 8px;
+    overflow: hidden;
+  }
+  .forge-landing-root .res-card {
+    display: grid; grid-template-columns: 26px 1fr auto; gap: 10px;
+    align-items: center;
+    padding: 9px 11px;
+    background: var(--surface-2); border: 1px solid var(--line-2);
+    border-radius: 9px;
+    opacity: 0; transform: translateY(6px);
+  }
+  .forge-landing-root .scene-research.on .res-card { animation: resIn .4s ease forwards; }
+  .forge-landing-root .res-card .ico { width: 26px; height: 26px; border-radius: 6px; }
+  .forge-landing-root .res-card .t { font-size: 12px; font-weight: 600; color: var(--ink); letter-spacing: -0.005em; }
+  .forge-landing-root .res-card .u { font-size: 10.5px; color: var(--muted); font-family: 'Geist Mono', monospace; margin-top: 1px; }
+  .forge-landing-root .res-card .meta { font-size: 10px; color: var(--muted); font-family: 'Geist Mono', monospace; }
+  @keyframes resIn { to { opacity: 1; transform: none; } }
+
+  /* PLAN scene — wireframe sitemap */
+  .forge-landing-root .plan-map { flex: 1; display: grid; grid-template-rows: auto 1fr auto; gap: 10px; }
+  .forge-landing-root .map-row { display: flex; gap: 8px; }
+  .forge-landing-root .map-node {
+    flex: 1; min-height: 36px;
+    border: 1.5px dashed var(--line-strong);
+    border-radius: 8px;
+    background: var(--surface-2);
+    display: flex; align-items: center; gap: 6px;
+    padding: 0 10px;
+    font-size: 11px; color: var(--ink-2); font-weight: 500;
+    opacity: 0; transform: translateY(4px);
+  }
+  .forge-landing-root .scene-plan.on .map-node { animation: planNodeIn .4s ease forwards; }
+  .forge-landing-root .map-node .pill {
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    padding: 2px 6px; border-radius: 4px;
+    background: var(--surface-3); color: var(--muted-2);
+  }
+  .forge-landing-root .map-root { background: var(--surface-3); border-style: solid; border-color: var(--ink); border-width: 1.5px; color: var(--ink); font-weight: 600; }
+  .forge-landing-root .map-root .pill { background: var(--ink); color: var(--on-ink); }
+  .forge-landing-root .map-spine { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; align-content: start; }
+  @keyframes planNodeIn { to { opacity: 1; transform: none; } }
+
+  /* DESIGN scene — visual draft with placeholder hero + cards */
+  .forge-landing-root .des-hero {
+    height: 42%;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--brand-1), var(--brand-2) 55%, var(--brand-3));
+    position: relative; overflow: hidden;
+    display: flex; align-items: flex-end; padding: 14px;
+    opacity: 0; transform: scale(.97);
+  }
+  .forge-landing-root .scene-design.on .des-hero { animation: desIn .5s ease forwards; }
+  .forge-landing-root .des-hero::after {
+    content: ''; position: absolute; inset: 0;
+    background:
+      radial-gradient(55% 75% at 22% 22%, rgba(255,255,255,.35), transparent 60%),
+      radial-gradient(40% 60% at 88% 90%, rgba(0,0,0,.18), transparent 60%);
+  }
+  .forge-landing-root .des-hero-t {
+    position: relative; z-index: 1; color: #fff;
+    font-size: 13px; font-weight: 600;
+  }
+  .forge-landing-root .des-hero-s {
+    position: relative; z-index: 1; color: rgba(255,255,255,.85);
+    font-size: 10.5px; margin-top: 2px;
+  }
+  .forge-landing-root .des-cards { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .forge-landing-root .des-card {
+    background: var(--surface-2); border: 1px solid var(--line-2);
+    border-radius: 8px; padding: 8px;
+    display: flex; flex-direction: column; gap: 4px;
+    opacity: 0; transform: translateY(6px);
+  }
+  .forge-landing-root .scene-design.on .des-card { animation: desIn .4s ease forwards; }
+  .forge-landing-root .ln { height: 6px; border-radius: 4px; background: var(--line-3); }
+  .forge-landing-root .ln.dark { background: var(--line-strong); width: 60%; }
+  .forge-landing-root .ln.short { width: 40%; }
+  .forge-landing-root .ln.long { width: 80%; }
+  @keyframes desIn { to { opacity: 1; transform: none; } }
+
+  .forge-landing-root .des-tokens { display: flex; gap: 6px; align-items: center; margin-top: 2px; }
+  .forge-landing-root .swatch { width: 16px; height: 16px; border-radius: 5px; border: 1px solid rgba(0,0,0,.05); opacity: 0; }
+  .forge-landing-root .scene-design.on .swatch { animation: desIn .4s ease forwards; }
+  .forge-landing-root .des-tokens .lbl { font-family: 'Geist Mono', monospace; font-size: 9.5px; color: var(--muted); margin-left: 4px; }
+
+  /* BUILD scene — code editor + progress */
+  .forge-landing-root .build-grid {
+    flex: 1; display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 10px; min-height: 0;
+  }
+  .forge-landing-root .tree {
+    background: var(--surface-2); border: 1px solid var(--line-2);
+    border-radius: 8px; padding: 8px;
+    font-family: 'Geist Mono', monospace; font-size: 10px;
+    display: flex; flex-direction: column; gap: 4px;
+    overflow: hidden;
+  }
+  .forge-landing-root .tree .f { color: var(--ink-2); display: flex; align-items: center; gap: 5px; opacity: 0; transform: translateX(-4px); }
+  .forge-landing-root .scene-build.on .tree .f { animation: planIn .35s ease forwards; }
+  .forge-landing-root .tree .f.dim { color: var(--muted); }
+  .forge-landing-root .tree .f::before { content: ''; width: 5px; height: 5px; border-radius: 999px; background: var(--line-strong); flex: none; }
+  .forge-landing-root .tree .f.active::before { background: var(--brand-2); }
+
+  .forge-landing-root .editor {
+    background: var(--editor-bg); border-radius: 8px;
+    padding: 10px 12px;
+    font-family: 'Geist Mono', monospace; font-size: 10.5px;
+    color: var(--editor-fg);
+    overflow: hidden;
+    display: flex; flex-direction: column; gap: 3px;
+    min-height: 0;
+  }
+  .forge-landing-root .code { white-space: nowrap; opacity: 0; transform: translateY(4px); }
+  .forge-landing-root .scene-build.on .code { animation: planIn .3s ease forwards; }
+  .forge-landing-root .code .k { color: oklch(0.78 0.15 280); }
+  .forge-landing-root .code .s { color: oklch(0.78 0.13 95); }
+  .forge-landing-root .code .t { color: oklch(0.74 0.14 160); }
+  .forge-landing-root .code .c { color: var(--code-c); }
+
+  .forge-landing-root .build-bar {
+    height: 22px; border-radius: 6px;
+    background: var(--surface-2); border: 1px solid var(--line-2);
+    overflow: hidden; position: relative;
+    flex: none;
+  }
+  .forge-landing-root .build-bar .fill {
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, var(--brand-1), var(--brand-3));
+    width: 0;
+    transition: width .25s linear;
+  }
+  .forge-landing-root .build-bar .lbl {
+    position: relative; z-index: 1;
+    font-family: 'Geist Mono', monospace; font-size: 10px;
+    color: var(--ink);
+    line-height: 22px; padding: 0 8px;
+    display: flex; justify-content: space-between;
+  }
+  .forge-landing-root .build-bar .lbl span:last-child { color: var(--muted-2); }
+
+  /* PUBLISH scene — finished UI */
+  .forge-landing-root .pub {
+    flex: 1; display: flex; flex-direction: column; gap: 10px;
+  }
+  .forge-landing-root .pub-hero {
+    height: 44%;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--brand-1), var(--brand-2) 55%, var(--brand-3));
+    position: relative; overflow: hidden;
+    display: flex; align-items: flex-end; padding: 14px;
+  }
+  .forge-landing-root .pub-hero::after {
+    content: ''; position: absolute; inset: 0;
+    background:
+      radial-gradient(55% 75% at 22% 22%, rgba(255,255,255,.35), transparent 60%),
+      radial-gradient(40% 60% at 88% 90%, rgba(0,0,0,.18), transparent 60%);
+  }
+  .forge-landing-root .pub-hero .h { position: relative; z-index: 1; color: #fff; font-size: 13px; font-weight: 600; }
+  .forge-landing-root .pub-hero .s { position: relative; z-index: 1; color: rgba(255,255,255,.85); font-size: 10.5px; margin-top: 2px; }
+  .forge-landing-root .pub-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; height: 22%; }
+  .forge-landing-root .pub-card { background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 4px; }
+  .forge-landing-root .pub-cta { display: flex; gap: 8px; align-items: center; }
+  .forge-landing-root .pub-cta .btn { height: 28px; padding: 0 14px; border-radius: 7px; font-size: 11px; font-weight: 500; display: inline-flex; align-items: center; }
+  .forge-landing-root .pub-cta .btn.solid { background: var(--ink); color: var(--on-ink); }
+  .forge-landing-root .pub-cta .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .forge-landing-root .pub-cta .url { margin-left: auto; font-family: 'Geist Mono', monospace; font-size: 10.5px; color: var(--green-ink); }
+
+  /* phase visibility */
+  .forge-landing-root .stage[data-phase="idle"]    .prompt    { opacity: 1; transform: scale(1); }
+  .forge-landing-root .stage[data-phase="typing"]  .prompt    { opacity: 1; transform: scale(1); }
+  .forge-landing-root .stage[data-phase="submit"]  .prompt    { opacity: 0; transform: translateY(-12px) scale(.96); pointer-events: none; }
+  .forge-landing-root .stage:not([data-phase="idle"]):not([data-phase="typing"]) .prompt { opacity: 0; transform: translateY(-12px) scale(.96); pointer-events: none; }
+
+  .forge-landing-root .stage[data-phase="idle"]   .workspace { opacity: 0; transform: translateY(16px) scale(.97); pointer-events: none; }
+  .forge-landing-root .stage[data-phase="typing"] .workspace { opacity: 0; transform: translateY(16px) scale(.97); pointer-events: none; }
+  .forge-landing-root .stage:not([data-phase="idle"]):not([data-phase="typing"]) .workspace { opacity: 1; transform: none; }
+
+  /* progress pips — hidden but still wired up under the hood */
+  .forge-landing-root .progress { display: none; }
+
+  .forge-landing-root .corner {
+    position: absolute; left: 18px; top: 16px;
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted); font-family: 'Geist Mono', monospace;
+    z-index: 4;
+  }
+  .forge-landing-root .corner .glyph {
+    width: 14px; height: 14px; border-radius: 4px;
+    background: linear-gradient(135deg, var(--brand-1), var(--brand-3));
+  }
+  .forge-landing-root .corner { transition: opacity .3s ease; }
+  .forge-landing-root .corner.hidden { opacity: 0; pointer-events: none; }
+
+  /* RIGHT column steps — distributes across full showcase height */
+  .forge-landing-root .steps {
+    display: flex; flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+    padding: 8px 0;
+  }
+  .forge-landing-root .step { cursor: pointer; transition: opacity .35s ease; }
+  .forge-landing-root .step h3 {
+    font-size: 30px; font-weight: 700; letter-spacing: -0.025em;
+    margin: 0 0 10px; color: var(--muted);
+    transition: color .35s ease;
+  }
+  .forge-landing-root .step p {
+    margin: 0; font-size: 15.5px; line-height: 1.5;
+    color: var(--muted); max-width: 32ch;
+    transition: color .35s ease;
+  }
+  .forge-landing-root .step.active h3 { color: var(--ink); }
+  .forge-landing-root .step.active p { color: var(--ink-2); }
+  .forge-landing-root .step .tick {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-bottom: 6px;
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted);
+    font-family: 'Geist Mono', monospace;
+  }
+  .forge-landing-root .step.active .tick { color: var(--brand-3); }
+  .forge-landing-root .step .tick .num {
+    width: 18px; height: 18px; border-radius: 5px;
+    background: var(--line);
+    color: var(--muted);
+    display: inline-grid; place-items: center;
+    font-size: 10px;
+    transition: background .35s, color .35s;
+  }
+  .forge-landing-root .step.active .tick .num { background: var(--ink); color: var(--on-ink); }
+
+  /* sub-status under step 2 */
+  .forge-landing-root .sub-status {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin-top: 12px;
+    max-height: 0; overflow: hidden;
+    transition: max-height .4s ease;
+  }
+  .forge-landing-root .step.active .sub-status { max-height: 80px; }
+  .forge-landing-root .sub-chip {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--surface-1);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    transition: background .25s, color .25s, border-color .25s, transform .25s;
+  }
+  .forge-landing-root .sub-chip.active {
+    background: var(--ink); color: var(--on-ink); border-color: var(--ink);
+    transform: translateY(-1px);
+  }
+  .forge-landing-root .sub-chip.done {
+    background: var(--surface-3); color: var(--muted-2); border-color: var(--line-2);
+  }
+  .forge-landing-root .sub-chip.done::before {
+    content: '✓ ';
+    color: var(--green-ink);
+  }
+
+  .forge-landing-root .hint {
+    margin-top: 40px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 12px; color: #8a8175;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .forge-landing-root .hint kbd {
+    display: inline-block; padding: 2px 7px; border-radius: 5px;
+    background: #fff; border: 1px solid var(--line);
+    font-family: inherit; font-size: 11px; color: var(--ink);
+  }
+
+  /* ── Tablet (≤ 900px) ───────────────────────────────────────────────── */
+  @media (max-width: 900px) {
+    .forge-landing-root .header { padding: 16px 24px; }
+    .forge-landing-root .page { padding: 24px 24px 72px; }
+    .forge-landing-root h1.title { font-size: 52px; margin: 32px 0 28px; }
+    .forge-landing-root .cta-row { margin: 0 0 48px; gap: 10px; }
+    .forge-landing-root .cta-row .btn { height: 46px; padding: 0 18px; font-size: 15px; }
+    .forge-landing-root .cta-row .meta { width: 100%; margin-left: 0; margin-top: 4px; }
+
+    .forge-landing-root .split {
+      grid-template-columns: 1fr;
+      gap: 40px;
+      align-items: start;
+    }
+    .forge-landing-root .steps {
+      height: auto;
+      padding: 0;
+      gap: 32px;
+    }
+  }
+
+  /* ── Phone (≤ 560px) ────────────────────────────────────────────────── */
+  @media (max-width: 560px) {
+    .forge-landing-root .header { padding: 14px 18px; gap: 12px; }
+    .forge-landing-root .header .btn { height: 36px; padding: 0 12px; font-size: 13px; }
+    .forge-landing-root .header .btn.ghost { display: none; }
+    .forge-landing-root .header .iconbtn { width: 34px; height: 34px; }
+    .forge-landing-root .logo { font-size: 17px; }
+    .forge-landing-root .logo .mark { width: 24px; height: 24px; border-radius: 6px; }
+
+    .forge-landing-root .page { padding: 16px 18px 56px; }
+
+    .forge-landing-root h1.title {
+      font-size: 38px;
+      margin: 20px 0 24px;
+    }
+
+    .forge-landing-root .cta-row { margin: 0 0 36px; gap: 8px; }
+    .forge-landing-root .cta-row .btn { height: 44px; padding: 0 16px; font-size: 14px; flex: 1 1 auto; justify-content: center; }
+    .forge-landing-root .cta-row .meta { font-size: 11px; }
+
+    .forge-landing-root .split { gap: 32px; }
+    .forge-landing-root .showcase { border-radius: 18px; }
+
+    /* tighten showcase internals so 4:3 stays readable on small screens */
+    .forge-landing-root .prompt { width: 80%; padding: 14px 14px 10px; }
+    .forge-landing-root .prompt-text { font-size: 14px; min-height: 50px; }
+    .forge-landing-root .chip { height: 24px; padding: 0 10px; font-size: 11px; }
+    .forge-landing-root .chip.icon { width: 24px; padding: 0; }
+    .forge-landing-root .submit { width: 28px; height: 28px; }
+
+    .forge-landing-root .ws-body { grid-template-columns: 50% 50%; }
+    .forge-landing-root .ws-bar { padding: 7px 10px; }
+    .forge-landing-root .ws-title { display: none; }
+    .forge-landing-root .chat { padding: 10px; gap: 8px; }
+    .forge-landing-root .msg .body { font-size: 11.5px; }
+    .forge-landing-root .scene { padding: 12px; gap: 8px; }
+    .forge-landing-root .build-grid { grid-template-columns: 80px 1fr; }
+
+    /* steps */
+    .forge-landing-root .steps { gap: 28px; padding: 0; }
+    .forge-landing-root .step h3 { font-size: 24px; }
+    .forge-landing-root .step p { font-size: 14.5px; }
+    .forge-landing-root .sub-chip { font-size: 10.5px; padding: 4px 9px; }
+  }
+
+  /* ── Very small phones (≤ 380px) ─────────────────────────────────────── */
+  @media (max-width: 380px) {
+    .forge-landing-root h1.title { font-size: 34px; }
+    .forge-landing-root .cta-row .btn { font-size: 13.5px; padding: 0 14px; }
+    .forge-landing-root .step h3 { font-size: 22px; }
+  }
+`
+
+  </style>
+</head>
+<body>
+
+  <!-- ────────────────────────────  NAV  ──────────────────────────── -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="#" class="nav-brand"><span class="mark"></span>Forge</a>
+      <div class="nav-links">
+        <a href="#showcase">Showcase</a>
+        <a href="#how-it-works">How it works</a>
+        <a href="#install">Install</a>
+        <a href="#docs">Docs</a>
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme" title="Toggle theme">
+          <svg class="sun"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+          <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+        <a class="nav-cta" href="https://github.com/Forgeweb-ai/Forgeweb" target="_blank" rel="noopener">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.55 0-.27-.01-.99-.02-1.94-3.2.7-3.87-1.54-3.87-1.54-.52-1.34-1.28-1.69-1.28-1.69-1.05-.72.08-.71.08-.71 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.04 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.79 0c2.21-1.49 3.18-1.18 3.18-1.18.62 1.58.23 2.75.11 3.04.74.81 1.18 1.84 1.18 3.1 0 4.43-2.69 5.41-5.25 5.69.41.36.78 1.06.78 2.14 0 1.55-.01 2.79-.01 3.17 0 .31.21.67.79.55C20.71 21.39 24 17.08 24 12 24 5.65 18.85.5 12 .5z"/></svg>
+          Star on GitHub
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ────────────────────────────  HERO  (Meet Forge animated)  ───────────────────────── -->
+  <section class="hero hero-meet">
+    <div class="forge-landing-root" data-forge-root>
+<div class="page">
+
+  <h1 class="title">Meet Forge</h1>
+
+  <div class="cta-row">
+    <button class="btn primary" type="button" data-forge-auth>
+      Get started
+      <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+    </button>
+    <button class="btn ghost" type="button">See how it works</button>
+    <span class="meta">Free to try · No credit card</span>
+  </div>
+
+  <div class="split">
+
+    <!-- LEFT: animated showcase -->
+    <div class="showcase">
+      <div class="corner">
+        <span class="glyph"></span>
+        <span data-forge-phase-label>idle</span>
+      </div>
+
+      <div class="stage" data-forge-stage data-phase="idle">
+
+        <!-- PROMPT (only visible idle/typing) -->
+        <div class="prompt">
+          <div class="prompt-text" data-forge-prompt-text><span class="ph">Describe what you want to build…</span><span class="caret"></span></div>
+          <div class="prompt-row">
+            <span class="chip icon" title="add">＋</span>
+            <span class="chip">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 5v12"/></svg>
+              Attach
+            </span>
+            <span class="chip">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+              Public
+            </span>
+            <span class="submit" data-forge-submit>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            </span>
+          </div>
+        </div>
+
+        <!-- WORKSPACE (visible from submit onwards) -->
+        <div class="workspace">
+          <div class="ws-bar">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <span class="ws-title"><span class="glyph"></span> forge / feedback-tool</span>
+            <span class="ws-status" data-forge-ws-status><span class="pulse"></span><span data-forge-ws-status-text>starting</span></span>
+          </div>
+          <div class="ws-body">
+
+            <div class="chat">
+              <div class="chat-scroll" data-forge-chat></div>
+            </div>
+
+            <div class="preview" data-forge-preview>
+
+              <div class="scene scene-idle on">
+                <span>○ preview ready · awaiting prompt</span>
+              </div>
+
+              <!-- RESEARCH -->
+              <div class="scene scene-research">
+                <div class="scene-h">research · references</div>
+                <div class="res-list" data-forge-res-list></div>
+              </div>
+
+              <!-- PLAN -->
+              <div class="scene scene-plan">
+                <div class="scene-h">plan · information architecture</div>
+                <div class="plan-map">
+                  <div class="map-row">
+                    <div class="map-node map-root" style="animation-delay:.05s"><span class="pill">root</span> /app</div>
+                  </div>
+                  <div class="map-spine">
+                    <div class="map-node" style="animation-delay:.30s"><span class="pill">view</span> Inbox</div>
+                    <div class="map-node" style="animation-delay:.55s"><span class="pill">view</span> Insights</div>
+                    <div class="map-node" style="animation-delay:.80s"><span class="pill">view</span> Reports</div>
+                    <div class="map-node" style="animation-delay:1.05s"><span class="pill">model</span> Thread</div>
+                    <div class="map-node" style="animation-delay:1.30s"><span class="pill">model</span> Tag</div>
+                    <div class="map-node" style="animation-delay:1.55s"><span class="pill">api</span> /digest</div>
+                  </div>
+                  <div class="map-row">
+                    <div class="map-node" style="animation-delay:1.85s"><span class="pill">auth</span> SSO + roles</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- DESIGN -->
+              <div class="scene scene-design">
+                <div class="scene-h">design · draft v1</div>
+                <div class="des-hero" style="animation-delay:.05s">
+                  <div>
+                    <div class="des-hero-t">Feedback, in one inbox.</div>
+                    <div class="des-hero-s">Capture, triage, ship — together.</div>
+                  </div>
+                </div>
+                <div class="des-cards">
+                  <div class="des-card" style="animation-delay:.30s"><span class="ln dark short"></span><span class="ln long"></span><span class="ln"></span></div>
+                  <div class="des-card" style="animation-delay:.50s"><span class="ln dark short"></span><span class="ln long"></span><span class="ln"></span></div>
+                  <div class="des-card" style="animation-delay:.70s"><span class="ln dark short"></span><span class="ln long"></span><span class="ln"></span></div>
+                </div>
+                <div class="des-tokens">
+                  <span class="swatch" style="background: var(--brand-1); animation-delay:.95s"></span>
+                  <span class="swatch" style="background: var(--brand-2); animation-delay:1.05s"></span>
+                  <span class="swatch" style="background: var(--brand-3); animation-delay:1.15s"></span>
+                  <span class="swatch" style="background: var(--ink); animation-delay:1.25s"></span>
+                  <span class="lbl">tokens · 4 / 4</span>
+                </div>
+              </div>
+
+              <!-- BUILD -->
+              <div class="scene scene-build">
+                <div class="scene-h">build · compiling</div>
+                <div class="build-grid">
+                  <div class="tree">
+                    <span class="f"   style="animation-delay:.05s">app.tsx</span>
+                    <span class="f"   style="animation-delay:.20s">layout.tsx</span>
+                    <span class="f"   style="animation-delay:.35s">inbox.tsx</span>
+                    <span class="f active" style="animation-delay:.50s">thread.tsx</span>
+                    <span class="f"   style="animation-delay:.65s">insights.tsx</span>
+                    <span class="f dim" style="animation-delay:.80s">api.ts</span>
+                    <span class="f dim" style="animation-delay:.95s">schema.ts</span>
+                    <span class="f dim" style="animation-delay:1.10s">theme.css</span>
+                  </div>
+                  <div class="editor">
+                    <div class="code" style="animation-delay:.10s"><span class="c">// thread.tsx</span></div>
+                    <div class="code" style="animation-delay:.25s"><span class="k">export function</span> <span class="t">Thread</span>({ id }) {</div>
+                    <div class="code" style="animation-delay:.40s">&nbsp;&nbsp;<span class="k">const</span> data = useThread(id);</div>
+                    <div class="code" style="animation-delay:.55s">&nbsp;&nbsp;<span class="k">return</span> (</div>
+                    <div class="code" style="animation-delay:.70s">&nbsp;&nbsp;&nbsp;&nbsp;&lt;<span class="t">Panel</span> title=<span class="s">"Thread"</span>&gt;</div>
+                    <div class="code" style="animation-delay:.85s">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{data.messages.<span class="t">map</span>(m =&gt;</div>
+                    <div class="code" style="animation-delay:1.00s">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;<span class="t">Message</span> {...m} /&gt;)}</div>
+                    <div class="code" style="animation-delay:1.15s">&nbsp;&nbsp;&nbsp;&nbsp;&lt;/<span class="t">Panel</span>&gt;</div>
+                    <div class="code" style="animation-delay:1.30s">&nbsp;&nbsp;);</div>
+                    <div class="code" style="animation-delay:1.45s">}</div>
+                  </div>
+                </div>
+                <div class="build-bar">
+                  <div class="fill" data-forge-build-fill></div>
+                  <div class="lbl"><span>compiling</span><span data-forge-build-pct>0%</span></div>
+                </div>
+              </div>
+
+              <!-- PUBLISH -->
+              <div class="scene scene-publish">
+                <div class="scene-h">live · published</div>
+                <div class="pub">
+                  <div class="pub-hero">
+                    <div>
+                      <div class="h">Feedback, in one inbox.</div>
+                      <div class="s">Capture, triage, ship — together.</div>
+                    </div>
+                  </div>
+                  <div class="pub-row">
+                    <div class="pub-card"><span class="ln dark short"></span><span class="ln long"></span><span class="ln"></span></div>
+                    <div class="pub-card"><span class="ln dark short"></span><span class="ln long"></span><span class="ln"></span></div>
+                    <div class="pub-card"><span class="ln dark short"></span><span class="ln long"></span><span class="ln"></span></div>
+                  </div>
+                  <div class="pub-cta">
+                    <span class="btn solid">Get started</span>
+                    <span class="btn ghost">View demo</span>
+                    <span class="url">forge.app/p-94b2</span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="progress" data-forge-pips></div>
+    </div>
+
+    <!-- RIGHT: 3 steps -->
+    <div class="steps" data-forge-steps>
+      <div class="step" data-step="0">
+        <div class="tick"><span class="num">1</span> Step one</div>
+        <h3>Start with an idea</h3>
+        <p>Describe the app or site you want to build, or drop in screenshots and docs.</p>
+      </div>
+      <div class="step" data-step="1">
+        <div class="tick"><span class="num">2</span> Step two</div>
+        <h3>Watch it come to life</h3>
+        <p>Forge researches, plans, designs, and builds — you watch the prototype assemble in real time.</p>
+        <div class="sub-status" data-forge-sub-status>
+          <span class="sub-chip" data-sub="research">Research</span>
+          <span class="sub-chip" data-sub="plan">Plan</span>
+          <span class="sub-chip" data-sub="design">Design</span>
+          <span class="sub-chip" data-sub="build">Build</span>
+        </div>
+      </div>
+      <div class="step" data-step="2">
+        <div class="tick"><span class="num">3</span> Step three</div>
+        <h3>Refine and publish</h3>
+        <p>Iterate with simple feedback, then deploy to the world with one click.</p>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+    </div>
+  </section>
+
+  <!-- ────────────────  BUILT ON OPENCODE STRIP  ────────────────── -->
+  <div class="builton">
+    <div class="container builton-inner">
+      <span class="builton-badge">Built on opencode</span>
+      <div>
+        <strong>Proudly built on <a href="https://github.com/sst/opencode" target="_blank" rel="noopener">opencode</a></strong>,
+        the open-source AI coding agent. We extend it with multi-tenant
+        workspaces, BYOK infrastructure, and a webapp-focused agent loop.
+        opencode stays MIT; our additions ship under BSL 1.1.
+      </div>
+    </div>
+  </div>
+
+  <!-- ──────────────────────────  SHOWCASE  ────────────────────────── -->
+  <section id="showcase">
+    <div class="container">
+      <div class="section-eyebrow">// Showcase</div>
+      <h2>Built with Forge.</h2>
+      <p class="section-lead">
+        Real apps shipped by real users. Each card shows the chat model
+        and design model used so you can see which combination produced
+        which result.
+      </p>
+
+      <div class="showcase-grid">
+        <!-- ──── CARD 1 ───────────────────────────────────────────── -->
+        <article class="show-card">
+          <div class="show-thumb">
+            <!-- TODO: showcase-01.png — 1280×800 -->
+            [ showcase-01 image ]
+          </div>
+          <div class="show-body">
+            <h3>App name #1</h3>
+            <p class="show-desc">One-line description of what this app does and what made it interesting.</p>
+            <div class="show-meta">
+              <span class="badge"><span class="badge-label">chat:</span> claude-sonnet-4-6</span>
+              <span class="badge"><span class="badge-label">design:</span> gpt-image-1</span>
+            </div>
+            <a class="show-link" href="#" target="_blank" rel="noopener">View prompt →</a>
+          </div>
+        </article>
+
+        <!-- ──── CARD 2 ───────────────────────────────────────────── -->
+        <article class="show-card">
+          <div class="show-thumb">[ showcase-02 image ]</div>
+          <div class="show-body">
+            <h3>App name #2</h3>
+            <p class="show-desc">One-line description.</p>
+            <div class="show-meta">
+              <span class="badge"><span class="badge-label">chat:</span> claude-opus-4-6</span>
+              <span class="badge"><span class="badge-label">design:</span> flux-1.1-pro</span>
+            </div>
+            <a class="show-link" href="#" target="_blank" rel="noopener">View prompt →</a>
+          </div>
+        </article>
+
+        <!-- ──── CARD 3 ───────────────────────────────────────────── -->
+        <article class="show-card">
+          <div class="show-thumb">[ showcase-03 image ]</div>
+          <div class="show-body">
+            <h3>App name #3</h3>
+            <p class="show-desc">One-line description.</p>
+            <div class="show-meta">
+              <span class="badge"><span class="badge-label">chat:</span> claude-sonnet-4-6</span>
+              <span class="badge"><span class="badge-label">design:</span> flux-schnell</span>
+            </div>
+            <a class="show-link" href="#" target="_blank" rel="noopener">View prompt →</a>
+          </div>
+        </article>
+
+        <!-- ──── CARD 4 ───────────────────────────────────────────── -->
+        <article class="show-card">
+          <div class="show-thumb">[ showcase-04 image ]</div>
+          <div class="show-body">
+            <h3>App name #4</h3>
+            <p class="show-desc">One-line description.</p>
+            <div class="show-meta">
+              <span class="badge"><span class="badge-label">chat:</span> kimi-k2</span>
+              <span class="badge"><span class="badge-label">design:</span> gpt-image-1</span>
+            </div>
+            <a class="show-link" href="#" target="_blank" rel="noopener">View prompt →</a>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ──────────────────────  HOW IT WORKS  ───────────────────────── -->
+  <section id="how-it-works">
+    <div class="container">
+      <div class="section-eyebrow">// How it works</div>
+      <h2>The whole picture, in one diagram.</h2>
+      <p class="section-lead">
+        Forge is four moving parts: a browser-side UI, an orchestrator,
+        a sandboxed agent container, and a logging proxy in front of your
+        LLM provider. Everything else (Postgres, the per-project workspace,
+        the snapshot store) hangs off these.
+      </p>
+
+      <figure class="arch-figure">
+        <!-- ARCHITECTURE SVG — hand-authored, theme-aware via currentColor + CSS vars.
+             Replace via Edit tool if the architecture changes. -->
+        <svg viewBox="0 0 920 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="archTitle archDesc">
+          <title id="archTitle">Forge architecture</title>
+          <desc id="archDesc">Browser connects to forge-ui, which talks to forge-server. forge-server orchestrates the opencode container, an LLM proxy, Postgres, and per-project runner containers.</desc>
+
+          <defs>
+            <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor" />
+            </marker>
+          </defs>
+
+          <style>
+            .box     { fill: var(--surface); stroke: var(--hair-2); stroke-width: 1.2; }
+            .box-2   { fill: var(--bg-2); stroke: var(--hair-2); stroke-width: 1.2; }
+            .box-a   { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; }
+            .label   { fill: var(--ink); font-family: var(--font-ui); font-size: 14px; font-weight: 600; }
+            .sub     { fill: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+            .arrow   { stroke: var(--muted); stroke-width: 1.4; fill: none; color: var(--muted); }
+            .arrow-a { stroke: var(--accent); stroke-width: 1.6; fill: none; color: var(--accent); }
+            .net     { fill: none; stroke: var(--hair-2); stroke-width: 1; stroke-dasharray: 4 4; }
+            .net-l   { fill: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+          </style>
+
+          <!-- Browser -->
+          <rect class="box" x="20" y="170" width="140" height="80" rx="10" />
+          <text class="label" x="90" y="205" text-anchor="middle">Browser</text>
+          <text class="sub"   x="90" y="225" text-anchor="middle">your laptop</text>
+
+          <!-- forge-ui -->
+          <rect class="box-a" x="200" y="170" width="160" height="80" rx="10" />
+          <text class="label" x="280" y="200" text-anchor="middle">forge-ui</text>
+          <text class="sub"   x="280" y="222" text-anchor="middle">chat · preview · settings</text>
+
+          <!-- Docker boundary -->
+          <rect class="net" x="395" y="40" width="510" height="360" rx="14" />
+          <text class="net-l" x="650" y="62" text-anchor="middle">docker network: forge-net</text>
+
+          <!-- forge-server -->
+          <rect class="box-a" x="420" y="170" width="170" height="80" rx="10" />
+          <text class="label" x="505" y="200" text-anchor="middle">forge-server</text>
+          <text class="sub"   x="505" y="222" text-anchor="middle">orchestrator · BYOK</text>
+
+          <!-- opencode -->
+          <rect class="box" x="640" y="85" width="240" height="90" rx="10" />
+          <text class="label" x="760" y="115" text-anchor="middle">opencode (vendored)</text>
+          <text class="sub"   x="760" y="135" text-anchor="middle">AI coding agent · MIT</text>
+          <text class="sub"   x="760" y="152" text-anchor="middle">runs in sandboxed container</text>
+          <text class="sub"   x="760" y="167" text-anchor="middle">reads/writes workspace files</text>
+
+          <!-- llm-proxy -->
+          <rect class="box" x="640" y="200" width="240" height="60" rx="10" />
+          <text class="label" x="760" y="225" text-anchor="middle">forge-llm-proxy</text>
+          <text class="sub"   x="760" y="245" text-anchor="middle">logs every request · port 7799</text>
+
+          <!-- Postgres -->
+          <rect class="box-2" x="420" y="295" width="100" height="60" rx="10" />
+          <text class="label" x="470" y="320" text-anchor="middle">Postgres</text>
+          <text class="sub"   x="470" y="340" text-anchor="middle">metadata</text>
+
+          <!-- Workspace volume -->
+          <rect class="box-2" x="535" y="295" width="115" height="60" rx="10" />
+          <text class="label" x="592" y="320" text-anchor="middle">workspace</text>
+          <text class="sub"   x="592" y="340" text-anchor="middle">/forge-data</text>
+
+          <!-- Runner container(s) -->
+          <rect class="box-2" x="665" y="295" width="215" height="60" rx="10" />
+          <text class="label" x="772" y="320" text-anchor="middle">runner containers</text>
+          <text class="sub"   x="772" y="340" text-anchor="middle">one per active project preview</text>
+
+          <!-- Provider cloud -->
+          <ellipse class="box" cx="760" cy="395" rx="105" ry="14" />
+          <text class="sub" x="760" y="399" text-anchor="middle">Anthropic · OpenAI · Moonshot · Google · Replicate</text>
+
+          <!-- Arrows -->
+          <line class="arrow"   x1="160" y1="210" x2="200" y2="210" marker-end="url(#arr)" />
+          <line class="arrow-a" x1="360" y1="210" x2="420" y2="210" marker-end="url(#arr)" />
+
+          <!-- forge-server → opencode -->
+          <path class="arrow" d="M 590 195 Q 615 195 615 145 Q 615 130 640 130" marker-end="url(#arr)" />
+          <!-- forge-server → llm-proxy -->
+          <line class="arrow" x1="590" y1="225" x2="640" y2="230" marker-end="url(#arr)" />
+          <!-- forge-server → postgres -->
+          <line class="arrow" x1="490" y1="250" x2="475" y2="295" marker-end="url(#arr)" />
+          <!-- forge-server → workspace -->
+          <line class="arrow" x1="525" y1="250" x2="570" y2="295" marker-end="url(#arr)" />
+          <!-- forge-server → runner -->
+          <line class="arrow" x1="585" y1="250" x2="700" y2="295" marker-end="url(#arr)" />
+          <!-- opencode → workspace (reads/writes) -->
+          <path class="arrow" d="M 700 175 Q 700 250 645 320" marker-end="url(#arr)" />
+          <!-- llm-proxy → provider cloud -->
+          <line class="arrow" x1="760" y1="260" x2="760" y2="382" marker-end="url(#arr)" />
+        </svg>
+        <figcaption class="arch-caption">
+          Solid lines = HTTP. Dashed box = docker-compose network.
+          Your LLM key only leaves forge-server on the exact provider request that needs it.
+        </figcaption>
+      </figure>
+
+      <div class="docgrid">
+        <div class="doc-card">
+          <h3>A. What happens when you hit send</h3>
+          <p>
+            Your message goes to the AI agent. The agent reads and writes
+            files in your project folder, runs commands, and asks your
+            chosen model what to do next. Each request to the model is
+            logged on your machine so you can see exactly what the agent
+            sent — handy when you're paying per token.
+          </p>
+        </div>
+
+        <div class="doc-card">
+          <h3>B. Every project has a real folder</h3>
+          <p>
+            Each project lives on disk as a normal folder of files — open
+            it in your editor, run commands in it, commit it to git if you
+            want. Forge keeps a <strong>snapshot every time the AI takes
+            a turn</strong>, so if an edit goes wrong you can roll back
+            without losing anything you typed.
+          </p>
+        </div>
+
+        <div class="doc-card">
+          <h3>C. Your account, your keys, your data</h3>
+          <p>
+            <strong>Your account, your project list, and every provider
+            key you've added live in a Supabase that runs on your
+            machine.</strong> The installer brings it up for you — there
+            is no hosted database, no Forge-controlled server holding
+            your data. Provider keys are encrypted before they hit disk;
+            decryption only happens on the exact provider call that
+            needs them.
+          </p>
+          <p>
+            Separately, the apps <em>you build</em> can connect their
+            own Supabase via in-app OAuth if they need auth, a database,
+            or file storage of their own. That's distinct from the
+            Supabase that runs Forge itself.
+          </p>
+        </div>
+
+        <div class="doc-card">
+          <h3>D. Self-host only (today)</h3>
+          <p>
+            Forge is open source and runs entirely on your machine. There
+            is no Forge SaaS — no "hosted" tier, no account on a Forge
+            server, no telemetry phoned home. The same Docker stack you
+            spin up locally is the whole product.
+          </p>
+          <p>
+            For the apps your AI builds, Forge provisions a local Postgres
+            schema by default. If those apps need real auth, file storage,
+            or a public database, connect a Supabase project via the
+            in-app OAuth flow — Forge stores a scoped delegation token,
+            never your <code>service_role</code> JWT.
+          </p>
+        </div>
+
+        <div class="doc-card">
+          <h3>E. See exactly what the AI is sent</h3>
+          <p>
+            Every request to your AI provider is written to a local log
+            folder before it goes out. If you ever wonder "what did the
+            agent send the model with my key?" — open the folder, the
+            answer is right there in plain JSON. You don't have to take
+            anyone's word for it.
+          </p>
+        </div>
+
+        <div class="doc-card">
+          <h3>F. AI images that don't get lost</h3>
+          <p>
+            When the agent wants to drop an AI-generated image into your
+            app, it queues the job and shows a placeholder until the
+            image arrives. If your image provider is busy, Forge retries
+            in the background instead of giving up — so a temporary rate
+            limit doesn't leave you with broken pictures in the page.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────  BYOK  ───────────────────────────── -->
+  <section id="byok">
+    <div class="container">
+      <div class="section-eyebrow">// BYOK</div>
+      <h2>What you bring (or don't).</h2>
+      <p class="section-lead">
+        Forge starts free — the default model is opencode zen's
+        DeepSeek V4 Flash Free, no key required. If you want a paid
+        model, you connect your own provider, pay your own bill, and
+        cancel any time by removing the key from Settings. Forge
+        doesn't resell tokens or hold a platform key on your behalf.
+      </p>
+      <p class="section-lead" style="margin-top: -12px;">
+        Note: the database that holds your account and your keys
+        (Supabase, on your machine) is set up by the installer — you
+        don't bring it, but it's not optional either. It's part of
+        what makes Forge run.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Provider</th>
+              <th>What it powers</th>
+              <th>Where the key lives</th>
+              <th>Required?</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>opencode zen</strong><br /><em>default · no key</em></td>
+              <td>DeepSeek V4 Flash Free, the default chat + design model. Works out of the box.</td>
+              <td>n/a — routed through opencode's free gateway.</td>
+              <td>Default</td>
+            </tr>
+            <tr>
+              <td><strong>Anthropic</strong></td>
+              <td>Claude Sonnet 4.6, Opus 4.6, Haiku 4.5 for chat / code.</td>
+              <td>In-app Settings → API Keys. Encrypted at rest.</td>
+              <td>Optional</td>
+            </tr>
+            <tr>
+              <td><strong>OpenAI</strong></td>
+              <td>GPT chat models; gpt-image-1 for image generation.</td>
+              <td>In-app Settings → API Keys. Encrypted at rest.</td>
+              <td>Optional</td>
+            </tr>
+            <tr>
+              <td><strong>Moonshot</strong></td>
+              <td>Kimi K2 chat model.</td>
+              <td>In-app Settings → API Keys. Encrypted at rest.</td>
+              <td>Optional</td>
+            </tr>
+            <tr>
+              <td><strong>Google</strong></td>
+              <td>Gemini chat model + Imagen design model.</td>
+              <td>In-app Settings → API Keys. Encrypted at rest.</td>
+              <td>Optional</td>
+            </tr>
+            <tr>
+              <td><strong>Replicate</strong></td>
+              <td>Flux, SDXL, and other open-weight image models.</td>
+              <td>In-app Settings → API Keys. Encrypted at rest.</td>
+              <td>Optional</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────────  INSTALL  ──────────────────────────── -->
+  <section id="install">
+    <div class="container">
+      <div class="section-eyebrow">// Install · self-host</div>
+      <h2>Two ways to run it. Both stay on your machine.</h2>
+      <p class="section-lead">
+        Forge is open source and self-hosted — there is no SaaS yet.
+        Everything you do runs on your own laptop or server, including
+        the AI agent. The default model is <strong>DeepSeek V4 Flash
+        Free</strong> via opencode zen, so a fresh install works with
+        zero keys. Bring an Anthropic / OpenAI / Moonshot / Google /
+        Replicate key from in-app Settings if you want a paid model.
+        Keys never live in <code>.env</code> — they're stored encrypted
+        on your machine and only sent on the exact provider request that
+        needs them. Prereqs: Docker (Desktop or Engine +
+        Compose v2), ~4GB RAM, ~10GB disk. macOS, Linux, WSL2.
+      </p>
+
+      <p class="section-lead" style="margin-top: -8px;">
+        Both paths bring up the whole stack — the chat UI, the agent,
+        the audit-log proxy, and a local Supabase that holds your
+        account, project list, and encrypted provider keys. None of
+        that needs to be configured; it just comes up.
+      </p>
+
+      <h3 style="margin-top: 36px;">Path A — Docker image (recommended)</h3>
+      <p>For most users. Pulls prebuilt images from the registry — no source clone, no Python, no bun, no build step. Two commands.</p>
+      <ol class="install-steps">
+        <li>
+          <h3>Fetch the compose file</h3>
+          <pre><code>curl -fsSL https://raw.githubusercontent.com/Forgeweb-ai/Forgeweb/main/docker-compose.release.yml \
+  -o docker-compose.yml</code></pre>
+          <p>The release compose file uses published <code>ghcr.io/forgeweb/*</code> images instead of building from source.</p>
+        </li>
+        <li>
+          <h3>Bring up the stack</h3>
+          <pre><code>docker compose up -d</code></pre>
+          <p>First boot pulls ~1.2 GB of images (Postgres, Redis, Traefik, forge-server, forge-ui, opencode, forge-llm-proxy) and brings everything up behind Traefik on <code>*.forge.localhost</code>. Allow ~2 minutes; subsequent boots are near-instant from the local image cache.</p>
+        </li>
+        <li>
+          <h3>Open the app and sign up</h3>
+          <p>Navigate to <a href="http://app.forge.localhost" target="_blank" rel="noopener"><code>http://app.forge.localhost</code></a> and create an account. The wildcard <code>*.localhost</code> resolves to <code>127.0.0.1</code> on every major OS — no <code>/etc/hosts</code> edit.</p>
+        </li>
+        <li>
+          <h3>Start building — no key required</h3>
+          <p>Type a prompt. The default <strong>DeepSeek V4 Flash Free</strong> model responds with zero setup.</p>
+          <p>Want a paid model (Claude Sonnet, GPT-Image, Flux, etc.)? Open <strong>Settings → API Keys</strong> and paste a provider key. Switch models from the composer dropdown — no restart.</p>
+        </li>
+        <li>
+          <h3>(Optional) Connect Supabase for the apps you build</h3>
+          <p>Forge already runs on its own local Supabase (your account, project list, and encrypted keys live there). This step is different: it lets the apps you <em>build</em> get their own Supabase project for auth / database / storage. From Settings, click <strong>Connect Supabase</strong> and complete the OAuth handoff — Forge holds a scoped delegation token, never your <code>service_role</code> JWT.</p>
+        </li>
+      </ol>
+
+      <h3 style="margin-top: 56px;">Path B — From source (for contributors)</h3>
+      <p>For developers who want to modify Forge itself. Clones the repo, builds from source, and starts everything via the dev scripts.</p>
+      <ol class="install-steps">
+        <li>
+          <h3>Clone the repo</h3>
+          <pre><code>git clone https://github.com/Forgeweb-ai/Forgeweb.git
+cd forge</code></pre>
+        </li>
+        <li>
+          <h3>Run the installer</h3>
+          <p>One script. It detects your OS, verifies Docker is running, checks Python 3.11+ and bun (auto-installs bun if missing), confirms ~10 GB free disk, generates a JWT secret, and hands off to <code>dev.sh</code> to bring the stack up.</p>
+          <pre><code>./install.sh</code></pre>
+          <p>Idempotent — re-run any time. <code>./install.sh --check</code> runs a pre-flight report without changing anything. Daily restart: <code>./dev.sh</code>.</p>
+        </li>
+        <li>
+          <h3>Open the app</h3>
+          <p>Same URLs as Path A: <a href="http://app.forge.localhost" target="_blank" rel="noopener"><code>http://app.forge.localhost</code></a>. Sign up, start building, optionally add a paid-model key in Settings.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────  DOCS  ──────────────────────────── -->
+  <section id="docs">
+    <div class="container">
+      <div class="section-eyebrow">// Documentation</div>
+      <h2>The whole stack, explained.</h2>
+      <p class="section-lead">
+        Click any section to expand. We keep these inline so you don't
+        have to leave the page to evaluate Forge. If you want to read the
+        whole thing top-to-bottom, expand them all — the order matches
+        how the system loads on first boot.
+      </p>
+
+      <details>
+        <summary>1. forge-ui — the chat front end</summary>
+        <p>
+          This is the app you actually use. It shows the chat composer,
+          the running preview of what you're building, the file tree of
+          the project, and Settings. It only talks to forge-server — it
+          never calls an LLM directly, so a leaky front-end can't expose
+          your provider key.
+        </p>
+        <p>
+          The visual language is the same warm-cream palette in light mode
+          and a deep-navy palette in dark — you're looking at it right
+          now. Both modes share the same tokens, so anything you customize
+          looks consistent across the app.
+        </p>
+      </details>
+
+      <details>
+        <summary>2. forge-server — the orchestrator</summary>
+        <p>
+          The brain. It owns your account, your projects, your settings,
+          and the key vault. When you type a message, forge-server is what
+          decides which AI model to call, hands the agent the right per-user
+          key, kicks off image jobs, and starts a fresh preview container
+          for your project if one isn't already running.
+        </p>
+        <p>
+          Idle previews go to sleep after a few minutes of inactivity so
+          you don't have a dozen project containers eating memory. They
+          wake the moment you hit the URL again.
+        </p>
+      </details>
+
+      <details>
+        <summary>3. opencode — the agent that actually edits your code</summary>
+        <p>
+          We vendor the
+          <a href="https://github.com/sst/opencode" target="_blank" rel="noopener">opencode</a>
+          repo into <code>opencode/</code>. It runs as its own container
+          (one container, shared by all projects; isolation between
+          projects is at the workspace-path level) and exposes a small
+          HTTP API that forge-server drives.
+        </p>
+        <p>
+          On top of opencode, Forge adds the things a webapp builder
+          needs: per-user keys, Supabase wiring, AI image generation, a
+          design system for the AI to pick from, and a verify step that
+          runs after every turn to catch breakage before you see it.
+          Everything we add to opencode itself stays under opencode's
+          MIT license — see the
+          <a href="https://github.com/Forgeweb-ai/Forgeweb/blob/main/NOTICE">NOTICE</a>
+          file.
+        </p>
+      </details>
+
+      <details>
+        <summary>4. The audit log for every AI call</summary>
+        <p>
+          Every request your agent makes to a paid model is recorded to a
+          local folder before it leaves your machine. Open
+          <code>forge-llm-proxy-logs/</code>, find the call, read what was
+          sent and what came back. Nothing is hidden — and if a provider
+          stops streaming mid-response, the log shows that too instead of
+          hanging the chat indefinitely.
+        </p>
+      </details>
+
+      <details>
+        <summary>5. Each project gets its own live preview</summary>
+        <p>
+          Every project you create gets a folder on disk and a running
+          preview URL of its own (something like
+          <code>my-app.preview.forge.localhost</code>). You can browse
+          it like a real site while you're building. Projects you haven't
+          touched in a while go to sleep automatically and wake the
+          moment you visit them again — so you can have dozens of
+          projects without your laptop fans spinning.
+        </p>
+      </details>
+
+      <details>
+        <summary>6. Versioning — a snapshot every AI turn</summary>
+        <p>
+          Forge saves a version of every file in your project each time
+          the AI takes a turn. If a turn breaks something, you can roll
+          back to any earlier point with one click — no merging, no
+          undo-history hunting. You don't have to commit anything to
+          git for this to work; the snapshots are separate from your
+          git history (if you use git at all).
+        </p>
+      </details>
+
+      <details>
+        <summary>7. AI image generation</summary>
+        <p>
+          When the agent decides your page needs an image, it asks your
+          image provider (Flux, gpt-image-1, Imagen, etc.) in the
+          background and drops a placeholder in the page until the real
+          image arrives. If your provider is busy, Forge retries quietly
+          instead of leaving broken images sitting in your page.
+        </p>
+        <p>
+          If you haven't added an image-model key, the agent falls back
+          to a stock-photo search so your page still has art — just not
+          custom-generated art.
+        </p>
+      </details>
+
+      <details>
+        <summary>8. Self-host only — and the two Supabases</summary>
+        <p>
+          Forge is open source and runs on your machine. There is no
+          hosted tier, no Forge-controlled account server, and no
+          telemetry. The whole product is what you start with
+          <code>docker compose up</code>. If you want apps you build
+          to be reachable from the public internet, you deploy them
+          yourself (Vercel, Fly, your own server) — Forge doesn't host
+          them for you.
+        </p>
+        <p>
+          There are <strong>two Supabases</strong> in the story —
+          worth keeping straight:
+        </p>
+        <p>
+          <strong>1. Forge's Supabase</strong> — runs on your machine,
+          set up automatically by the installer. This is where your
+          Forge account lives, where your project list lives, and
+          where your encrypted provider keys live. It's not optional;
+          it's how Forge works. You never connect to a hosted Forge
+          database because there isn't one.
+        </p>
+        <p>
+          <strong>2. The Supabase your apps connect to</strong>
+          (optional) — for the apps <em>you build</em> that need their
+          own auth, database, or file storage. You connect this from
+          in-app Settings via OAuth, and Forge holds a scoped
+          delegation token (never your <code>service_role</code> JWT)
+          to provision and wire it into the apps that need it. This
+          Supabase is yours, lives wherever you keep it, and is fully
+          separate from Forge's own storage. The two never mix.
+        </p>
+      </details>
+
+      <details>
+        <summary>9. Licensing — BSL 1.1 + opencode MIT</summary>
+        <p>
+          Forge's own code is licensed under the
+          <a href="https://mariadb.com/bsl11/" target="_blank" rel="noopener">Business Source License 1.1</a>.
+          Plain English: you can self-host, modify, contribute, and run
+          your own apps on Forge freely. You can <em>not</em> resell
+          Forge itself as a hosted AI-app-generation service. Four years
+          after publication, each release converts to Apache 2.0.
+        </p>
+        <p>
+          The vendored <code>opencode/</code> subtree stays under its
+          upstream MIT license. Attribution is in the
+          <a href="https://github.com/Forgeweb-ai/Forgeweb/blob/main/NOTICE">NOTICE</a>
+          file at the repo root. Modifications we ship to opencode
+          remain MIT, per the upstream's terms.
+        </p>
+      </details>
+
+      <details>
+        <summary>10. Contributing</summary>
+        <p>
+          Want to contribute? See
+          <a href="https://github.com/Forgeweb-ai/Forgeweb/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener"><code>CONTRIBUTING.md</code></a>
+          for how the repo is laid out, how to set up a dev environment,
+          how PRs work, and what we'll merge versus push upstream to
+          opencode.
+        </p>
+      </details>
+    </div>
+  </section>
+
+  <!-- ────────────────────────────  FOOTER  ──────────────────────────── -->
+  <footer>
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <h4>Forge</h4>
+          <p style="max-width: 36ch;">An open-source, self-hostable AI webapp builder. Built on opencode. BYOK at every layer.</p>
+        </div>
+        <div>
+          <h4>Product</h4>
+          <a href="#showcase">Showcase</a>
+          <a href="#how-it-works">How it works</a>
+          <a href="#byok">BYOK</a>
+          <a href="#install">Install</a>
+        </div>
+        <div>
+          <h4>Docs</h4>
+          <a href="#docs">Documentation</a>
+          <a href="https://github.com/Forgeweb-ai/Forgeweb/blob/main/LAUNCH_PLAN.md" target="_blank" rel="noopener">Launch plan</a>
+          <a href="https://github.com/Forgeweb-ai/Forgeweb/blob/main/CLAUDE.md" target="_blank" rel="noopener">Engineering guidelines</a>
+        </div>
+        <div>
+          <h4>Project</h4>
+          <a href="https://github.com/Forgeweb-ai/Forgeweb" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://github.com/sst/opencode" target="_blank" rel="noopener">opencode (upstream)</a>
+          <a href="https://github.com/Forgeweb-ai/Forgeweb/blob/main/LICENSE" target="_blank" rel="noopener">License (BSL 1.1)</a>
+          <a href="https://github.com/Forgeweb-ai/Forgeweb/blob/main/NOTICE" target="_blank" rel="noopener">NOTICE</a>
+        </div>
+      </div>
+      <div class="footer-meta">
+        <div>© 2026 Forge · BSL 1.1 · opencode MIT preserved</div>
+        <div>forgeweb.ai</div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Theme toggle — persists in localStorage, falls back to system pref.
+    // Tiny, no framework. The only JS on the page.
+    (function () {
+      var btn = document.getElementById('themeToggle');
+      if (!btn) return;
+      var KEY = 'forge.landing.theme';
+      var stored = null;
+      try { stored = localStorage.getItem(KEY); } catch (e) { /* private mode */ }
+      if (stored === 'dark' || stored === 'light') {
+        document.documentElement.setAttribute('data-color-scheme', stored);
+      }
+      btn.addEventListener('click', function () {
+        var cur = document.documentElement.getAttribute('data-color-scheme');
+        var sys = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        var current = cur || sys;
+        var next = current === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-color-scheme', next);
+        try { localStorage.setItem(KEY, next); } catch (e) { /* ignore */ }
+      });
+    })();
+
+    // ── Lifted vanilla-JS animation script for the Meet-Forge hero ──────
+    //    Source: forge-ui/src/pages/landing.tsx (startForgeAnimations).
+    //    TS annotations stripped; theme-toggle no-ops because we manage
+    //    theme above. Scoped to .forge-landing-root via the root arg.
+function startForgeAnimations(root) {
+  const cleanups = []
+
+  // theme toggle
+  const themeBtn = root.querySelector("[data-forge-theme-btn]")
+  if (themeBtn) {
+    const onClick = () => {
+      const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark"
+      document.documentElement.dataset.theme = next
+      try { localStorage.setItem("forge.theme", next) } catch {}
+    }
+    themeBtn.addEventListener("click", onClick)
+    cleanups.push(() => themeBtn.removeEventListener("click", onClick))
+  }
+
+  // header scroll state — the landing root is the scrolling container
+  // (body has overflow:hidden in the app shell), so we listen on root.
+  const hdr = root.querySelector("[data-forge-header]")
+  if (hdr) {
+    const onScroll = () => hdr.classList.toggle("scrolled", root.scrollTop > 6)
+    onScroll()
+    root.addEventListener("scroll", onScroll, { passive: true })
+    cleanups.push(() => root.removeEventListener("scroll", onScroll))
+  }
+
+  // showcase animation
+  const stage = root.querySelector("[data-forge-stage]")
+  const corner = root.querySelector(".showcase .corner")
+  const promptText = root.querySelector("[data-forge-prompt-text]")
+  const submit = root.querySelector("[data-forge-submit]")
+  const phaseLabel = root.querySelector("[data-forge-phase-label]")
+  const wsStatus = root.querySelector("[data-forge-ws-status]")
+  const wsStatusText = root.querySelector("[data-forge-ws-status-text]")
+  const stepEls = [...root.querySelectorAll("[data-forge-steps] .step")]
+  const pipsEl = root.querySelector("[data-forge-pips]")
+  const subChips = [...root.querySelectorAll("[data-forge-sub-status] .sub-chip")]
+  const chat = root.querySelector("[data-forge-chat]")
+  const preview = root.querySelector("[data-forge-preview]")
+  const buildFill = root.querySelector("[data-forge-build-fill]")
+  const buildPct = root.querySelector("[data-forge-build-pct]")
+  const resList = root.querySelector("[data-forge-res-list]")
+
+  const PHASES = [
+    { key: "idle",     label: "idle",             step: 0, sub: null,       dwell: 1200 },
+    { key: "typing",   label: "composing prompt", step: 0, sub: null,       dwell: 3400 },
+    { key: "submit",   label: "submitting",       step: 1, sub: null,       dwell: 800  },
+    { key: "research", label: "researching",      step: 1, sub: "research", dwell: 3400 },
+    { key: "plan",     label: "planning",         step: 1, sub: "plan",     dwell: 3400 },
+    { key: "design",   label: "designing",        step: 1, sub: "design",   dwell: 3400 },
+    { key: "build",    label: "building",         step: 1, sub: "build",    dwell: 3800 },
+    { key: "publish",  label: "live · deployed",  step: 2, sub: null,       dwell: 3000 },
+  ]
+  const SUB_ORDER = ["research", "plan", "design", "build"]
+
+  // pips
+  PHASES.forEach((p, i) => {
+    const d = document.createElement("span")
+    d.className = "pdot"
+    d.dataset.i = String(i)
+    d.title = p.label
+    d.addEventListener("click", () => { setPhase(i); reschedule() })
+    pipsEl.appendChild(d)
+  })
+  const pips = [...pipsEl.children]
+
+  // prompt
+  const SCRIPT = "Build a customer "
+  const KW = "feedback tool"
+  const TAIL = " with AI-powered analytics"
+
+  function setPromptEmpty() {
+    promptText.innerHTML = '<span class="ph">Describe what you want to build…</span><span class="caret"></span>'
+  }
+  function setPromptFull() {
+    promptText.innerHTML = 'Build a customer <span class="kw">feedback tool</span> with AI-powered analytics'
+  }
+  let typingTimer = null
+  function startTyping() {
+    if (typingTimer) clearTimeout(typingTimer)
+    promptText.innerHTML = '<span class="caret"></span>'
+    const full = SCRIPT + KW + TAIL
+    const kwStart = SCRIPT.length, kwEnd = SCRIPT.length + KW.length
+    let i = 0
+    function step() {
+      if (currentPhase !== 1) return
+      i++
+      const pre = full.slice(0, Math.min(i, kwStart))
+      const mid = full.slice(kwStart, Math.min(i, kwEnd))
+      const post = full.slice(kwEnd, i)
+      promptText.innerHTML =
+        esc(pre) +
+        (mid ? '<span class="kw">' + esc(mid) + '</span>' : '') +
+        (post ? esc(post) : '') +
+        '<span class="caret"></span>'
+      if (i < full.length) {
+        const ch = full[i - 1]
+        const d = ch === " " ? 70 : (Math.random() < 0.08 ? 130 : 36 + Math.random() * 38)
+        typingTimer = setTimeout(step, d)
+      }
+    }
+    step()
+  }
+  function esc(s) {
+    return s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]))
+  }
+
+  // chat
+  function clearChat() { chat.innerHTML = "" }
+  function addMsg(role, html, delay = 0) {
+    const m = document.createElement("div")
+    m.className = "msg " + role
+    m.style.animationDelay = delay + "ms"
+    const ava = role === "user" ? "me" : "F"
+    m.innerHTML = `<div class="ava">${ava}</div><div class="body">${html}</div>`
+    chat.appendChild(m)
+    return m
+  }
+
+  // scenes
+  const scenes = {
+    idle:     preview.querySelector(".scene-idle"),
+    research: preview.querySelector(".scene-research"),
+    plan:     preview.querySelector(".scene-plan"),
+    design:   preview.querySelector(".scene-design"),
+    build:    preview.querySelector(".scene-build"),
+    publish:  preview.querySelector(".scene-publish"),
+  }
+  function showScene(name) {
+    for (const k of Object.keys(scenes)) scenes[k].classList.toggle("on", k === name)
+  }
+
+  const SOURCES = [
+    { t: "Feedback inbox · anatomy",  u: "practice.design/inbox", c: "#7aa6ff", meta: "4 min" },
+    { t: "Tagging taxonomies",        u: "support-handbook.io",   c: "#ff9a5a", meta: "6 min" },
+    { t: "Triage flows · case study", u: "ux-quarterly.dev",      c: "#b07cff", meta: "8 min" },
+    { t: "Sentiment benchmarks",      u: "research.note/2403",    c: "#5ec99a", meta: "paper" },
+    { t: "Onboarding examples",       u: "field-notes.co",        c: "#e85a8a", meta: "12 ex" },
+  ]
+  function renderResearch() {
+    resList.innerHTML = ""
+    SOURCES.forEach((s, i) => {
+      const c = document.createElement("div")
+      c.className = "res-card"
+      c.style.animationDelay = (i * 280 + 80) + "ms"
+      c.innerHTML = `
+        <span class="ico" style="background: linear-gradient(135deg, ${s.c}, ${s.c}cc)"></span>
+        <span><span class="t">${s.t}</span><div class="u">${s.u}</div></span>
+        <span class="meta">${s.meta}</span>`
+      resList.appendChild(c)
+    })
+  }
+
+  // build progress
+  let buildAnim = null
+  function startBuild() {
+    if (buildAnim) cancelAnimationFrame(buildAnim)
+    const start = performance.now()
+    const duration = PHASES[6].dwell - 400
+    function tick(t) {
+      const k = Math.min(1, (t - start) / duration)
+      const pct = Math.round(k * 100)
+      buildFill.style.width = pct + "%"
+      buildPct.textContent = pct + "%"
+      if (k < 1 && currentPhase === 6) buildAnim = requestAnimationFrame(tick)
+    }
+    buildAnim = requestAnimationFrame(tick)
+  }
+  function resetBuild() {
+    if (buildAnim) cancelAnimationFrame(buildAnim)
+    buildFill.style.width = "0%"
+    buildPct.textContent = "0%"
+  }
+
+  function rerunScene(scene) {
+    scene.classList.remove("on")
+    void scene.offsetWidth
+    scene.classList.add("on")
+  }
+
+  const AGENT_MSGS = {
+    research: {
+      title: "Researching references",
+      done:  "Researched 5 sources",
+      body: `
+        <div class="sub">Scanning <span class="kw">5 sources</span> on inbox patterns &amp; tagging.</div>
+        <div class="sources">
+          <span class="src" style="animation-delay:.15s"><span class="fav" style="background:#7aa6ff"></span>practice.design</span>
+          <span class="src" style="animation-delay:.35s"><span class="fav" style="background:#ff9a5a"></span>support-handbook</span>
+          <span class="src" style="animation-delay:.55s"><span class="fav" style="background:#b07cff"></span>ux-quarterly</span>
+          <span class="src" style="animation-delay:.75s"><span class="fav" style="background:#5ec99a"></span>research.note</span>
+          <span class="src" style="animation-delay:.95s"><span class="fav" style="background:#e85a8a"></span>field-notes</span>
+        </div>`,
+    },
+    plan: {
+      title: "Drafting a plan",
+      done:  "Plan ready · 4 items",
+      body: `
+        <div class="sub">Three views, two models, SSO from day one.</div>
+        <div class="plan">
+          <div class="plan-item done" style="animation-delay:.10s"><span class="box"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 8.5l3 3 7-7"/></svg></span>Inbox · triage queue</div>
+          <div class="plan-item done" style="animation-delay:.30s"><span class="box"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 8.5l3 3 7-7"/></svg></span>Insights · sentiment + tags</div>
+          <div class="plan-item done" style="animation-delay:.50s"><span class="box"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 8.5l3 3 7-7"/></svg></span>Reports · weekly digests</div>
+          <div class="plan-item done" style="animation-delay:.70s"><span class="box"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 8.5l3 3 7-7"/></svg></span>Auth · SSO + role-based access</div>
+        </div>`,
+    },
+    design: {
+      title: "Drafting the interface",
+      done:  "Draft v1 ready",
+      body:  `<div class="sub">Warm neutrals, ember accents, one inbox view.</div>`,
+    },
+    build: {
+      title: "Building components",
+      done:  "Built 8 files",
+      body:  `<div class="sub">Wiring <span class="kw">thread.tsx</span>, <span class="kw">insights.tsx</span>, schema, theme…</div>`,
+    },
+    publish: {
+      title: "✓ Deployed",
+      done:  "Deployed",
+      body:  `<div class="sub">Live at <span class="kw">forge.app/p-94b2</span> — share or keep iterating.</div>`,
+    },
+  }
+  const AGENT_ORDER = ["research", "plan", "design", "build", "publish"]
+
+  function rebuildChat() {
+    clearChat()
+    const p = PHASES[currentPhase].key
+    if (p === "idle" || p === "typing") return
+
+    addMsg("user", 'Build a customer <span class="tl">feedback tool</span> with AI-powered analytics.', 0)
+    if (p === "submit") return
+
+    const activeIdx = AGENT_ORDER.indexOf(p)
+    if (activeIdx < 0) return
+
+    AGENT_ORDER.forEach((k, i) => {
+      if (i > activeIdx) return
+      const cfg = AGENT_MSGS[k]
+      if (i < activeIdx) {
+        const m = addMsg("agent", `<span class="tl">${cfg.done}</span>`, 0)
+        m.classList.add("compact")
+      } else {
+        addMsg("agent", `<span class="tl">${cfg.title}</span>${cfg.body}`, 60)
+      }
+    })
+  }
+
+  let currentPhase = 0
+  function setPhase(p) {
+    currentPhase = ((p % PHASES.length) + PHASES.length) % PHASES.length
+    const cfg = PHASES[currentPhase]
+    stage.dataset.phase = cfg.key
+    phaseLabel.textContent = cfg.label
+    wsStatusText.textContent = cfg.label
+    wsStatus.classList.toggle("live", cfg.key === "publish")
+    corner.classList.toggle("hidden", !(cfg.key === "idle" || cfg.key === "typing"))
+
+    stepEls.forEach((s, i) => s.classList.toggle("active", i === cfg.step))
+    pips.forEach((d, i) => d.classList.toggle("on", i === currentPhase))
+    submit.classList.toggle("fire", cfg.key === "submit")
+
+    subChips.forEach((c) => {
+      const idx = SUB_ORDER.indexOf(c.dataset.sub)
+      const curIdx = cfg.sub ? SUB_ORDER.indexOf(cfg.sub) : -1
+      c.classList.toggle("active", cfg.sub === c.dataset.sub)
+      c.classList.toggle("done", curIdx === -1 ? cfg.step > 1 : idx < curIdx)
+    })
+
+    if (cfg.key === "idle") setPromptEmpty()
+    else if (cfg.key === "typing") startTyping()
+    else setPromptFull()
+
+    rebuildChat()
+
+    if (cfg.key === "idle" || cfg.key === "typing" || cfg.key === "submit") {
+      showScene("idle")
+    } else if (cfg.key === "research") {
+      renderResearch()
+      showScene("research"); rerunScene(scenes.research)
+    } else if (cfg.key === "plan") {
+      showScene("plan"); rerunScene(scenes.plan)
+    } else if (cfg.key === "design") {
+      showScene("design"); rerunScene(scenes.design)
+    } else if (cfg.key === "build") {
+      showScene("build"); rerunScene(scenes.build)
+      startBuild()
+    } else if (cfg.key === "publish") {
+      showScene("publish")
+    }
+
+    if (cfg.key !== "build") resetBuild()
+  }
+
+  let playing = true
+  let scheduleTimer = null
+  function reschedule() {
+    if (scheduleTimer) clearTimeout(scheduleTimer)
+    if (!playing) return
+    scheduleTimer = setTimeout(() => {
+      setPhase((currentPhase + 1) % PHASES.length)
+      reschedule()
+    }, PHASES[currentPhase].dwell)
+  }
+
+  setPhase(0)
+  reschedule()
+
+  stepEls.forEach((s, i) => {
+    const onClick = () => {
+      const first = PHASES.findIndex((p) => p.step === i)
+      if (first >= 0) { setPhase(first); reschedule() }
+    }
+    s.addEventListener("click", onClick)
+    cleanups.push(() => s.removeEventListener("click", onClick))
+  })
+
+  const onKey = (e) => {
+    if (e.code === "Space") {
+      e.preventDefault()
+      playing = !playing
+      if (playing) reschedule()
+      else if (scheduleTimer) clearTimeout(scheduleTimer)
+    }
+    if (e.code === "ArrowRight") { setPhase(currentPhase + 1); reschedule() }
+    if (e.code === "ArrowLeft")  { setPhase(currentPhase - 1); reschedule() }
+  }
+  document.addEventListener("keydown", onKey)
+  cleanups.push(() => document.removeEventListener("keydown", onKey))
+
+  cleanups.push(() => {
+    if (typingTimer) clearTimeout(typingTimer)
+    if (scheduleTimer) clearTimeout(scheduleTimer)
+    if (buildAnim) cancelAnimationFrame(buildAnim)
+  })
+
+  return () => cleanups.forEach((f) => { try { f() } catch {} })
+}
+
+    (function () {
+      var root = document.querySelector('.forge-landing-root');
+      if (root) {
+        try { startForgeAnimations(root); } catch (e) {
+          console.warn('Forge hero animation init failed:', e);
+        }
+        // Wire `data-forge-auth` CTAs ("Get started" / "Log in") — in the
+        // SolidJS app these navigate to /auth. On the standalone landing
+        // we scroll to #install instead (same intent: "show me how to
+        // start"), so the buttons don't dead-end on a missing route.
+        root.querySelectorAll('[data-forge-auth]').forEach(function (el) {
+          el.addEventListener('click', function (e) {
+            e.preventDefault();
+            var t = document.getElementById('install');
+            if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        });
+        // "See how it works" → scroll to #how-it-works.
+        root.querySelectorAll('button.btn.ghost').forEach(function (el) {
+          if (el.textContent.trim() === 'See how it works') {
+            el.addEventListener('click', function () {
+              var t = document.getElementById('how-it-works');
+              if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+          }
+        });
+      }
+    })();
+  </script>
+
+</body>
+</html>
