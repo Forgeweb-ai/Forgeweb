@@ -1,0 +1,1390 @@
+@import "@opencode-ai/ui/styles/tailwind";
+@import "@opencode-ai/ui/v2/styles/tailwind.css";
+
+@source "./**/*.{ts,tsx,html}";
+@source "../index.html";
+
+/* ═══════════════════════════════════════════════════════════
+   FORGE UI — Loom Design System
+   Warm cream "Atelier" palette · Instrument Serif + Geist
+   Terracotta/amber accent  ·  matching Loom.html exactly
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Loom design tokens (Atelier — warm cream) ── */
+:root {
+  /* Loom palette */
+  --bg:          oklch(0.965 0.008 75);
+  --bg-2:        oklch(0.94 0.01 75);
+  --surface:     oklch(0.995 0.004 80);
+  --surface-2:   oklch(0.985 0.006 75);
+  --ink:         oklch(0.18 0.015 50);
+  --ink-2:       oklch(0.32 0.012 55);
+  --muted:       oklch(0.52 0.012 60);
+  --faint:       oklch(0.72 0.01 65);
+  --hair:        oklch(0.88 0.008 70);
+  --hair-2:      oklch(0.82 0.01 70);
+  --accent:      oklch(0.62 0.155 45);
+  --accent-ink:  oklch(0.99 0.005 80);
+  --accent-soft: oklch(0.92 0.04 50);
+  --good:        oklch(0.62 0.12 145);
+  --warn:        oklch(0.7 0.14 80);
+
+  --radius-sm: 6px;
+  --radius:    10px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+
+  --font-display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --font-ui:      "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono:    "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Bridge @opencode-ai/ui base tokens → Loom palette */
+  --background-base:      var(--bg);
+  --background-stronger:  var(--surface);
+  --surface-base:         var(--surface-2);
+  --surface-inset-base:   var(--bg-2);
+  --border-weak-base:     var(--hair);
+  --border-base:          var(--hair-2);
+
+  /* Typography bridge */
+  --font-family-sans:     var(--font-ui);
+  --font-family-mono:     var(--font-mono);
+
+  /* Text color bridge */
+  --text-strong:          var(--ink);
+  --text-base:            var(--ink-2);
+  --text-weak:            var(--muted);
+  --text-weaker:          var(--faint);
+  --text-interactive-base: var(--accent);
+  --text-link-base:       var(--accent);
+  --text-on-critical-base: oklch(0.99 0.005 30);
+
+  /* Icon bridge */
+  --icon-base:            var(--ink-2);
+  --icon-weaker:          var(--faint);
+
+  /* Map accent & background to v2 tokens (light mode) */
+  --v2-background-bg-base:      var(--surface);
+  --v2-background-bg-deep:      var(--bg);
+  --v2-background-bg-layer-01:  var(--surface-2);
+  --v2-background-bg-layer-02:  oklch(0.94 0.01 75);
+  --v2-background-bg-layer-03:  oklch(0.90 0.012 72);
+  --v2-text-text-base:          var(--ink);
+  --v2-text-text-muted:         var(--muted);
+  --v2-text-text-faint:         var(--faint);
+  --v2-background-bg-accent:    oklch(0.62 0.155 45);
+  --v2-text-text-accent:        oklch(0.52 0.155 45);
+  --v2-text-text-accent-hover:  oklch(0.42 0.155 45);
+  --v2-icon-icon-accent:        oklch(0.52 0.155 45);
+  --v2-icon-icon-accent-hover:  oklch(0.42 0.155 45);
+  --v2-border-border-focus:     oklch(0.62 0.155 45);
+  --v2-state-bg-info:           oklch(0.95 0.03 60);
+  --v2-state-fg-info:           oklch(0.42 0.155 45);
+  --v2-state-border-info:       oklch(0.85 0.07 55);
+}
+
+/* ── Dark mode: Loom Midnight palette ── */
+[data-color-scheme="dark"] {
+  --bg:          oklch(0.16 0.018 260);
+  --bg-2:        oklch(0.21 0.02 260);
+  --surface:     oklch(0.22 0.018 260);
+  --surface-2:   oklch(0.26 0.02 260);
+  --ink:         oklch(0.96 0.006 80);
+  --ink-2:       oklch(0.82 0.008 80);
+  --muted:       oklch(0.62 0.012 75);
+  --faint:       oklch(0.45 0.014 260);
+  --hair:        oklch(0.32 0.018 260);
+  --hair-2:      oklch(0.4 0.02 260);
+  --accent:      oklch(0.75 0.16 75);
+  --accent-ink:  oklch(0.18 0.018 260);
+  --accent-soft: oklch(0.3 0.05 75);
+
+  /* Bridge @opencode-ai/ui base tokens → Loom Midnight */
+  --background-base:      var(--bg);
+  --background-stronger:  var(--surface);
+  --surface-base:         var(--surface-2);
+  --surface-inset-base:   var(--bg-2);
+  --border-weak-base:     var(--hair);
+  --border-base:          var(--hair-2);
+
+  --font-family-sans:     var(--font-ui);
+  --font-family-mono:     var(--font-mono);
+
+  --text-strong:          var(--ink);
+  --text-base:            var(--ink-2);
+  --text-weak:            var(--muted);
+  --text-weaker:          var(--faint);
+  --text-interactive-base: var(--accent);
+  --text-link-base:       var(--accent);
+
+  --icon-base:            var(--ink-2);
+  --icon-weaker:          var(--faint);
+
+  /* Map to v2 tokens */
+  --v2-background-bg-base:      var(--surface);
+  --v2-background-bg-deep:      var(--bg);
+  --v2-background-bg-layer-01:  var(--surface-2);
+  --v2-background-bg-layer-02:  oklch(0.30 0.022 260);
+  --v2-background-bg-layer-03:  oklch(0.36 0.024 260);
+  --v2-background-bg-button-neutral: oklch(0.28 0.020 260 / 0.6);
+
+  --v2-background-bg-accent:    var(--accent);
+  --v2-text-text-accent:        oklch(0.88 0.12 75);
+  --v2-text-text-accent-hover:  oklch(0.95 0.10 75);
+  --v2-icon-icon-accent:        oklch(0.88 0.12 75);
+  --v2-icon-icon-accent-hover:  oklch(0.95 0.10 75);
+  --v2-border-border-focus:     var(--accent);
+
+  --v2-text-text-base:          var(--ink);
+  --v2-text-text-muted:         var(--muted);
+  --v2-text-text-faint:         var(--faint);
+
+  --v2-state-bg-info:           oklch(0.24 0.04 75);
+  --v2-state-fg-info:           oklch(0.88 0.12 75);
+  --v2-state-border-info:       oklch(0.40 0.08 75);
+
+  --v2-illustration-illustration-layer-01: var(--surface-2);
+  --v2-illustration-illustration-layer-02: oklch(0.30 0.022 260);
+  --v2-illustration-illustration-layer-03: oklch(0.36 0.024 260);
+}
+
+@font-face {
+  font-family: "JetBrainsMono Nerd Font Mono";
+  src: url("/assets/JetBrainsMonoNerdFontMono-Regular.woff2") format("woff2");
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* ── Loom typography helpers ── */
+.font-serif { font-family: var(--font-display) !important; }
+.font-mono-loom { font-family: var(--font-mono) !important; }
+::selection { background: var(--accent-soft); color: var(--ink); }
+
+/* ── Page-level cream surface ─────────────────────────────────────────────
+   Default html + body to the Loom cream so any uncovered area (e.g. the
+   flex wrapper between SessionHeader and the side panels, the gutter under
+   short conversations) reads as one continuous warm surface rather than
+   bleeding through to the browser's default white. Components paint their
+   own backgrounds on top; this is just the canvas. */
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+@layer components {
+  @keyframes session-progress-whip {
+    0% {
+      clip-path: inset(0 100% 0 0 round 999px);
+      animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    48% {
+      clip-path: inset(0 0 0 0 round 999px);
+      animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+    }
+
+    100% {
+      clip-path: inset(0 0 0 100% round 999px);
+    }
+  }
+
+  [data-component="session-progress"] {
+    position: absolute;
+    inset: 0 0 auto;
+    height: 2px;
+    overflow: hidden;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 220ms ease-out;
+  }
+
+  [data-component="session-progress"][data-state="hiding"] {
+    opacity: 0;
+  }
+
+  [data-component="session-progress-bar"] {
+    width: 100%;
+    height: 100%;
+    border-radius: 999px;
+    clip-path: inset(0 100% 0 0 round 999px);
+    will-change: clip-path;
+  }
+
+  [data-component="getting-started"] {
+    container-type: inline-size;
+    container-name: getting-started;
+  }
+
+  [data-component="dropdown-menu-content"].desktop-app-menu,
+  [data-component="dropdown-menu-sub-content"].desktop-app-menu {
+    min-width: 160px;
+    padding: 2px;
+  }
+
+  [data-component="dropdown-menu-content"].desktop-app-menu {
+    width: 160px;
+  }
+
+  [data-component="dropdown-menu-sub-content"].desktop-app-menu {
+    width: max-content;
+    min-width: 240px;
+    max-width: min(320px, calc(100vw - 24px));
+  }
+
+  [data-component="dropdown-menu-content"].desktop-app-menu [data-slot="dropdown-menu-group-label"] {
+    display: flex;
+    align-items: center;
+    height: 28px;
+    padding: 0 12px;
+    font-size: var(--font-size-x-small);
+    font-weight: var(--font-weight-medium);
+    line-height: 1;
+    color: var(--text-weak);
+  }
+
+  [data-component="dropdown-menu-content"].desktop-app-menu [data-slot="dropdown-menu-item"],
+  [data-component="dropdown-menu-content"].desktop-app-menu [data-slot="dropdown-menu-sub-trigger"],
+  [data-component="dropdown-menu-sub-content"].desktop-app-menu [data-slot="dropdown-menu-item"],
+  [data-component="dropdown-menu-sub-content"].desktop-app-menu [data-slot="dropdown-menu-sub-trigger"] {
+    min-height: 28px;
+    padding: 0 12px;
+    gap: 8px;
+    font-weight: var(--font-weight-regular);
+    line-height: 1;
+  }
+
+  [data-component="dropdown-menu-content"].desktop-app-menu [data-slot="dropdown-menu-item-label"],
+  [data-component="dropdown-menu-sub-content"].desktop-app-menu [data-slot="dropdown-menu-item-label"] {
+    white-space: nowrap;
+  }
+
+  [data-slot="desktop-app-menu-keybind"] {
+    margin-left: auto;
+    color: var(--text-weak);
+    font-size: var(--font-size-x-small);
+    font-weight: var(--font-weight-regular);
+    white-space: nowrap;
+  }
+
+  [data-slot="desktop-app-menu-chevron"] {
+    display: flex;
+    margin-left: auto;
+    color: var(--icon-base);
+  }
+
+  [data-component="getting-started-actions"] {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem; /* gap-3 */
+  }
+
+  [data-component="getting-started-actions"] > [data-component="button"] {
+    width: 100%;
+  }
+
+  @container getting-started (min-width: 17rem) {
+    [data-component="getting-started-actions"] {
+      flex-direction: row;
+      align-items: center;
+    }
+
+    [data-component="getting-started-actions"] > [data-component="button"] {
+      width: auto;
+    }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  /* ── Live Preview Workspace Styles ── */
+  .ws-tabs {
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--hair);
+    background: var(--bg);
+    gap: 2px;
+    height: 44px;
+  }
+  .ws-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 7px;
+    background: transparent;
+    border: 0;
+    color: var(--muted);
+    font-size: 12.5px;
+    position: relative;
+    transition: all 0.12s;
+  }
+  .ws-tab:hover {
+    color: var(--ink-2);
+    background: var(--surface-2);
+  }
+  .ws-tab.active {
+    color: var(--ink);
+    background: var(--surface);
+  }
+  .ws-tab.active::after {
+    content: "";
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: -6px;
+    height: 2px;
+    background: var(--ink);
+    border-radius: 2px;
+  }
+  .urlbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--hair);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--muted);
+    /* Tightened from 280px → 200px to free toolbar slack for the right
+       icon group (Select / Fix-this / Refresh / Restart / Open / Download).
+       "app.preview.forge.app" is ~22ch and renders fully at 200px; longer
+       project names truncate via the inner .truncate span. */
+    min-width: 120px;
+    max-width: 200px;
+  }
+  .urlbar .dot-row {
+    display: flex;
+    gap: 4px;
+    margin-right: 4px;
+    flex-shrink: 0;
+  }
+  .urlbar .dot-row span {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--hair-2);
+  }
+  /* ── Shared icon-pill: tab selector (left) + device toggle (right) ── */
+  .tab-seg,
+  .device-tog {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--hair);
+    border-radius: 0.5rem;
+    padding: 2px;
+    background: var(--surface-2);
+    gap: 0;
+    flex-shrink: 0;
+  }
+  .tab-seg button,
+  .device-tog button {
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: 0;
+    border-radius: 0.375rem;
+    color: var(--muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.12s, color 0.12s;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  .tab-seg button:hover,
+  .device-tog button:hover {
+    color: var(--ink-2);
+    background: rgba(128,128,128,0.08);
+  }
+  .tab-seg button.active,
+  .device-tog button.active {
+    background: rgba(96, 165, 250, 0.15);
+    color: rgb(59, 130, 246);
+    box-shadow: 0 1px 2px rgba(59, 130, 246, 0.12);
+  }
+  .tab-seg button:disabled,
+  .tab-seg button[aria-disabled="true"] {
+    opacity: 0.35;
+    pointer-events: none;
+  }
+
+  .ws-stage {
+    min-height: 0;
+    overflow: auto;
+    position: relative;
+    background: var(--bg-2);
+    width: 100%;
+    height: 100%;
+  }
+  .ws-stage::-webkit-scrollbar { width: 8px; height: 8px; }
+  .ws-stage::-webkit-scrollbar-thumb { background: var(--hair-2); border-radius: 4px; }
+
+  .ws-frame {
+    margin: 18px auto;
+    background: var(--surface);
+    border: 1px solid var(--hair);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: 0 1px 0 var(--hair), 0 20px 60px -28px oklch(0.2 0.02 60 / 0.18);
+    transition: max-width .25s cubic-bezier(.4,0,.2,1);
+    height: calc(100% - 36px);
+  }
+  .ws-frame.desktop { max-width: min(1280px, calc(100% - 36px)); }
+  .ws-frame.tablet  { max-width: 820px; }
+  .ws-frame.mobile  { max-width: 390px; }
+
+  /* Building skeleton */
+  .building-stage {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    color: var(--muted);
+    background: var(--bg-2);
+  }
+  .build-orb {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, var(--accent-soft), transparent 60%),
+                radial-gradient(circle at 70% 70%, var(--accent) 0%, transparent 50%),
+                var(--surface);
+    border: 1px solid var(--hair);
+    position: relative;
+    animation: orbpulse 2.4s ease-in-out infinite;
+  }
+  .build-orb::before {
+    content: "";
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    border: 1px solid var(--accent);
+    opacity: 0.3;
+    animation: orbring 2.4s ease-out infinite;
+  }
+  @keyframes orbpulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.04); }
+  }
+  @keyframes orbring {
+    0% { transform: scale(0.8); opacity: 0.4; }
+    100% { transform: scale(1.5); opacity: 0; }
+  }
+  /* Used by the version-revert overlay (session-side-panel) so the
+     Forge mark fades in cleanly rather than popping. Kept short
+     (180ms) so the overlay feels responsive, not laggy. */
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  .build-label {
+    font-family: var(--font-display);
+    font-size: 24px;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+  }
+  .build-sub {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+
+  /* Database view */
+  .db-view {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+    background: var(--bg-2);
+  }
+  .db-card {
+    background: var(--surface);
+    border: 1px solid var(--hair);
+    border-radius: var(--radius-lg);
+    padding: 28px 32px;
+    text-align: center;
+    max-width: 380px;
+    box-shadow: 0 12px 40px -24px oklch(0.2 0.02 60 / 0.18);
+  }
+  .db-card .glyph {
+    width: 44px;
+    height: 44px;
+    margin: 0 auto 14px;
+    border-radius: 10px;
+    background: var(--bg-2);
+    border: 1px solid var(--hair);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-2);
+  }
+  .db-card h3 {
+    font-family: var(--font-display);
+    font-size: 22px;
+    margin: 0 0 6px;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+  }
+  .db-card p {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 0 0 18px;
+  }
+
+  /* Scoped compact variant for the preview-panel toolbar — there are 6
+     icon-btns (Showcase, Select, Fix-this, Refresh, ⋯overflow) plus tabs
+     + device-toggle in a single row. Shrinks button sizing ONLY inside
+     .compact-toolbar; nothing outside this scope changes. */
+  .compact-toolbar .icon-btn         { width: 22px; height: 22px; }
+  .compact-toolbar .tab-seg button,
+  .compact-toolbar .device-tog button { width: 26px; height: 26px; }
+  .compact-toolbar .tab-seg,
+  .compact-toolbar .device-tog       { padding: 1px; }
+
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--ink-2);
+    transition: background 0.12s, border-color 0.12s;
+    cursor: pointer;
+  }
+  .icon-btn:hover {
+    background: var(--surface-2);
+    border-color: var(--hair);
+  }
+
+  .twk-btn {
+    appearance: none;
+    height: 32px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.12s, transform 0.1s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .twk-btn:hover {
+    opacity: 0.9;
+  }
+  .twk-btn:active {
+    transform: scale(0.97);
+  }
+
+  /* ── Preview toolbar: Start App button ── */
+  .showcase-start-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 6px;
+    border: none;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.12s, transform 0.1s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .showcase-start-btn:hover { opacity: 0.88; }
+  .showcase-start-btn:active { transform: scale(0.97); }
+  .showcase-start-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── Preview toolbar: Showcase badge (when running) ── */
+  .showcase-badge-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 6px;
+    border: 1px solid var(--hair);
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .showcase-badge-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .showcase-badge-btn.showcased {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* ── Empty / Home State ── */
+  .empty {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: var(--bg);
+  }
+  .empty-inner {
+    max-width: 880px;
+    width: 100%;
+    margin: 0 auto;
+    padding: clamp(40px, 8vh, 100px) 32px 40px;
+    display: flex;
+    flex-direction: column;
+    /* When the left sessions panel is open it shrinks the canvas; shift the
+       hero left by half the panel width so it stays centered against the
+       viewport instead of drifting right. Var is set by SessionsListPanel. */
+    transform: translateX(calc(var(--forge-sidebar-width, 0px) / -2));
+  }
+  @media (max-width: 767px) {
+    /* On mobile the panel is hidden, so don't compensate. */
+    .empty-inner {
+      transform: none;
+    }
+  }
+  .kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 24px;
+  }
+  .kicker .line {
+    width: 32px;
+    height: 1px;
+    background: var(--hair-2);
+  }
+  h1.hero {
+    font-family: var(--font-display);
+    font-size: clamp(48px, 7vw, 84px);
+    line-height: 0.95;
+    font-weight: 400;
+    letter-spacing: -0.025em;
+    margin: 0 0 14px;
+    color: var(--ink);
+  }
+  h1.hero .italic {
+    font-style: italic;
+    color: var(--accent);
+  }
+  .hero-sub {
+    font-family: var(--font-ui);
+    font-size: 16px;
+    color: var(--muted);
+    max-width: 540px;
+    margin: 0 0 36px;
+    line-height: 1.5;
+  }
+
+  /* Suggestion grid */
+  .suggest-label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 44px 0 14px;
+  }
+  .suggest-label h3 {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 400;
+    color: var(--ink);
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .suggest-label .meta {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .suggest-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+  .suggest-card {
+    text-align: left;
+    background: var(--surface);
+    border: 1px solid var(--hair);
+    border-radius: var(--radius);
+    padding: 18px 18px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: border-color .15s, transform .15s, background .15s;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+  }
+  .suggest-card:hover {
+    border-color: var(--ink-2);
+    transform: translateY(-1px);
+  }
+  .suggest-card::after {
+    content: "↗";
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    color: var(--faint);
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity .15s, transform .15s;
+  }
+  .suggest-card:hover::after {
+    opacity: 1;
+    transform: translate(2px, -2px);
+  }
+  .suggest-card .glyph {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--bg-2);
+    border: 1px solid var(--hair);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-2);
+  }
+  .suggest-card .title {
+    font-family: var(--font-display);
+    font-size: 19px;
+    font-weight: 400;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+    line-height: 1.15;
+  }
+  .suggest-card .sub {
+    font-family: var(--font-ui);
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+
+  /* ── Sessions left panel (loom-session-row + loom-icon-btn) ── */
+  .loom-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: transparent;
+    border: 0;
+    color: var(--muted);
+    cursor: pointer;
+    transition: background-color .12s, color .12s;
+  }
+  .loom-icon-btn:hover {
+    background: var(--surface-2);
+    color: var(--ink-2);
+  }
+  .loom-icon-btn:focus-visible {
+    outline: 1px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .loom-session-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 30px;
+    padding: 0 10px;
+    margin: 1px 0;
+    border-radius: 7px;
+    color: var(--muted);
+    font-family: var(--font-ui);
+    font-size: 12.5px;
+    line-height: 1;
+    text-decoration: none;
+    transition: background-color .12s, color .12s;
+    min-width: 0;
+  }
+  .loom-session-row:hover {
+    background: var(--surface-2);
+    color: var(--ink-2);
+  }
+  .loom-session-row.is-active {
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: 0 0 0 1px var(--hair);
+  }
+  .loom-session-row > span {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ── Composer overrides inside empty state ── */
+  .empty [data-component="session-new-composer"] {
+    background: var(--surface) !important;
+    border: 1px solid var(--hair) !important;
+    border-radius: var(--radius-lg) !important;
+    box-shadow: 0 1px 0 var(--hair), 0 12px 40px -20px oklch(0.2 0.02 60 / 0.15) !important;
+    padding: 8px 12px !important;
+    margin-top: 14px !important;
+    transition: border-color .15s, box-shadow .15s !important;
+  }
+  .empty [data-component="session-new-composer"]:focus-within {
+    border-color: var(--ink-2) !important;
+    box-shadow: 0 1px 0 var(--hair), 0 16px 48px -16px oklch(0.2 0.02 60 / 0.2) !important;
+  }
+  .empty [data-component="prompt-input"],
+  .empty [data-component="session-new-design-text"] {
+    font-family: var(--font-ui) !important;
+    font-size: 17px !important;
+    color: var(--ink) !important;
+    background: transparent !important;
+    line-height: 1.45 !important;
+  }
+  .empty [data-component="session-new-design-text"] {
+    color: var(--faint) !important;
+  }
+  .empty [data-action="prompt-submit"] {
+    width: 34px !important;
+    height: 34px !important;
+    background-color: var(--ink) !important;
+    background-image: none !important;
+    color: var(--surface) !important;
+    border-radius: 10px !important;
+    cursor: pointer !important;
+    transition: transform .12s, opacity .12s !important;
+  }
+  .empty [data-action="prompt-submit"]:hover {
+    transform: translateY(-1px) !important;
+  }
+  .empty [data-action="prompt-submit"]:disabled {
+    opacity: 0.35 !important;
+    transform: none !important;
+  }
+  .empty [data-action="prompt-attach"] {
+    color: var(--muted) !important;
+    cursor: pointer;
+  }
+  .empty [data-action="prompt-attach"]:hover {
+    background: var(--surface-2) !important;
+    border-color: var(--hair) !important;
+    color: var(--ink-2) !important;
+  }
+
+  /* ══════════════════════════════════════════
+     SESSION PAGE — CHAT PANEL OVERRIDES
+     Loom warm cream · dark user pills · mono steps
+     ══════════════════════════════════════════ */
+
+  /* User message text bubble → light cream card (Loom Atelier).
+     Library already right-aligns via [data-slot="user-message-body"] margin-left:auto.
+     Matches the new chat spec: cream-on-cream surface, dark text, subtle hairline.
+     (Replaces the older dark-ink pill so user + assistant share the same
+      cream surface, with terracotta reserved for the build-summary card.) */
+  [data-slot="user-message-text"] {
+    background: var(--surface-2) !important;
+    color: var(--ink) !important;
+    border: 1px solid var(--hair) !important;
+    border-radius: 12px 12px 4px 12px !important;
+    padding: 10px 14px !important;
+    font-size: 13.5px !important;
+    line-height: 1.5 !important;
+    box-shadow: none !important;
+  }
+
+  /* File/agent highlights inside the cream pill: tint to accent terracotta */
+  [data-slot="user-message-text"] [data-highlight="file"],
+  [data-slot="user-message-text"] [data-highlight="agent"] {
+    color: var(--accent) !important;
+  }
+
+  /* Assistant text response: flush prose on cream page bg (no bubble).
+     The OLD orange-bubble override has been removed — terracotta now lives
+     only inside [data-component="build-summary"]. Keep left-alignment +
+     top-spacing because the message-part library doesn't otherwise set it. */
+  [data-component="text-part"] {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    margin-top: 8px !important;
+  }
+
+  /* Interim Forge-turn left accent (until the agent reliably emits the
+     forge:summary card on every completed turn). A 2px terracotta hairline
+     on the left margin of any session-turn row that hosts an assistant
+     header or assistant content. Renders via ::before so box-model is
+     untouched — no realignment, no width shift. Stacks visually continuous
+     across multi-part assistant turns (header row + N content rows). */
+  [data-slot="session-turn-message-container"]:has([data-slot="assistant-message-header"]),
+  [data-slot="session-turn-message-container"]:has([data-slot="session-turn-assistant-content"]) {
+    position: relative;
+  }
+  [data-slot="session-turn-message-container"]:has([data-slot="assistant-message-header"])::before,
+  [data-slot="session-turn-message-container"]:has([data-slot="session-turn-assistant-content"])::before {
+    content: "";
+    position: absolute;
+    left: 8px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--v2-orange-900);
+    opacity: 0.35;
+    border-radius: 2px;
+    pointer-events: none;
+  }
+
+  /* Thinking row: spinner + text */
+  [data-slot="session-turn-thinking"] {
+    color: var(--muted) !important;
+  }
+  .session-turn-thinking-heading {
+    color: var(--faint) !important;
+  }
+
+  /* File diff list header sticky bg */
+  [data-slot="session-turn-diffs-header"] {
+    background-color: var(--surface) !important;
+  }
+
+  /* Diff file path colors */
+  [data-slot="session-turn-diff-directory"] {
+    color: var(--muted) !important;
+  }
+  [data-slot="session-turn-diff-filename"] {
+    color: var(--ink) !important;
+  }
+
+  /* Diff view area background */
+  [data-slot="session-turn-diff-view"] {
+    background-color: var(--bg-2) !important;
+  }
+
+  /* Bash output block */
+  [data-component="bash-output"] {
+    background: var(--surface-2) !important;
+    border-color: var(--hair) !important;
+    border-radius: var(--radius-sm) !important;
+  }
+  [data-slot="bash-pre"] code {
+    font-family: var(--font-mono) !important;
+    color: var(--ink-2) !important;
+    font-size: 12.5px !important;
+  }
+
+  /* Reasoning / thinking expanded content */
+  [data-component="reasoning-part"] [data-component="markdown"] {
+    color: var(--muted) !important;
+  }
+
+  /* Step status icon when running */
+  [data-slot="basic-tool-tool-status-icon"] {
+    color: var(--accent) !important;
+  }
+
+  /* Message timeline scroll container */
+  [data-component="message-timeline"] {
+    background: var(--bg) !important;
+    /* Backstop: hard-clip horizontal overflow from individual rows so a
+       runaway long token can't push the whole timeline past the right edge
+       of the panel. Rows still wrap vertically below this. */
+    overflow-x: hidden;
+  }
+
+  /* ── Chat overflow + responsiveness ────────────────────────────────────
+     Long inline `code` tokens and unbreakable strings inside assistant
+     prose were overflowing the chat panel because the flex chain had no
+     min-width: 0 (the default `auto` lets children grow past their
+     container) and the prose didn't force aggressive wrapping. These rules
+     make the message containers shrink-friendly and break anywhere when
+     normal word breaks aren't enough. Scoped to chat slots only, so the
+     preview iframe and side-panel content are untouched. */
+  [data-slot="session-turn-message-container"],
+  [data-slot="session-turn-assistant-content"],
+  [data-slot="session-turn-message-content"] {
+    min-width: 0 !important;
+    max-width: 100%;
+  }
+  /* Text-part body — break long words and inline code; never let the prose
+     blow past its container. `anywhere` is stronger than `break-word` and
+     breaks at zero-width opportunities so e.g. `someVeryLongInlineCodeToken`
+     wraps mid-token rather than overflowing. */
+  [data-component="text-part"],
+  [data-component="text-part"] [data-slot="text-part-body"],
+  [data-component="text-part"] [data-component="markdown"] {
+    max-width: 100%;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  /* Inline markdown code chips inherit `anywhere` so multi-token strings
+     like `pt-6 md:pt-10` break at the space when they overflow. */
+  [data-component="markdown"] :not(pre) > code {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: normal;
+  }
+  /* Code blocks stay on a single horizontal scroll container — they're
+     code, breaking them would be wrong. `pre` already has overflow: auto
+     in markdown.css; just ensure it doesn't propagate width to siblings. */
+  [data-component="markdown"] pre {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  /* Review tab content — Tabs.Content renders with data-slot="tabs-content".
+     Only the review value needs the cream override (other tabs like preview
+     show the user's app inside an iframe with its own bg). Kobalte exposes
+     the panel's value via data-value, so we can filter to just "review". */
+  [data-slot="tabs-content"][data-value="review"] {
+    background: var(--bg) !important;
+  }
+
+  /* Session page root + main canvas — force cream regardless of whether the
+     Tailwind `bg-background-base` utility compiles to the Loom cream. The
+     rail already paints itself; this rule covers everything to its right
+     (timeline, new-session view, side panel chrome) so the whole session
+     surface reads as one continuous warm cream. */
+  [data-component="session-page"],
+  [data-slot="session-page-canvas"] {
+    background: var(--bg) !important;
+  }
+
+  /* ── Forge rail · UserMenu scoping ─────────────────────────────────────
+     The UserMenu component was designed for the wide home-sidebar chip
+     (full width, avatar + name + email + caret, popover anchored above and
+     spanning the parent). In the 56px rail we want only the avatar to show
+     and the popover to flyout to the RIGHT, not stretch across a 56px-wide
+     parent. Overrides are scoped to .forge-rail-user-menu so the home page
+     is untouched. */
+  .forge-rail-user-menu .forge-user-anchor {
+    width: 38px !important;
+    height: 38px !important;
+    padding: 0 !important;
+    justify-content: center;
+    border-radius: 999px !important;
+  }
+  .forge-rail-user-menu .forge-user-anchor:hover {
+    background: rgba(21,20,15,0.06) !important;
+  }
+  .forge-rail-user-menu .forge-user-anchor.open {
+    background: rgba(21,20,15,0.08) !important;
+  }
+  [data-color-scheme="dark"] .forge-rail-user-menu .forge-user-anchor:hover {
+    background: rgba(255,255,255,0.06) !important;
+  }
+  [data-color-scheme="dark"] .forge-rail-user-menu .forge-user-anchor.open {
+    background: rgba(255,255,255,0.10) !important;
+  }
+  /* Hide the chip's text + caret — we only want the avatar circle. */
+  .forge-rail-user-menu .forge-user-who,
+  .forge-rail-user-menu .forge-user-caret {
+    display: none !important;
+  }
+  /* Use the home page's warm gradient on the rail avatar to match brand. */
+  .forge-rail-user-menu .forge-user-avatar {
+    background: linear-gradient(135deg, oklch(0.78 0.15 55), oklch(0.58 0.21 18)) !important;
+    width: 34px !important;
+    height: 34px !important;
+    font-size: 13px !important;
+  }
+  /* Popover: flyout to the right of the rail (full menu width), bottom-aligned
+     with the trigger so it reads as "above-right" of the avatar rather than
+     spanning the 56px-wide rail container. */
+  .forge-rail-user-menu .forge-user-pop {
+    left: calc(100% + 10px) !important;
+    right: auto !important;
+    bottom: 0 !important;
+    width: 280px !important;
+  }
+  /* Appearance submenu inside the rail's popover — its default left:100%
+     would push it off-screen against the chat. Flip it to the right side. */
+  .forge-rail-user-menu .forge-user-submenu {
+    left: auto !important;
+    right: calc(100% + 8px) !important;
+  }
+  [data-component="message-timeline"]::-webkit-scrollbar { width: 6px; }
+  [data-component="message-timeline"]::-webkit-scrollbar-track { background: transparent; }
+  [data-component="message-timeline"]::-webkit-scrollbar-thumb {
+    background: var(--hair-2);
+    border-radius: 3px;
+  }
+
+  /* Session follow-up / in-chat composer */
+  [data-component="session-input-composer"],
+  [data-component="follow-up-composer"],
+  [data-component="session-follow-up-composer"] {
+    background: var(--surface) !important;
+    border: 1px solid var(--hair) !important;
+    border-radius: var(--radius-lg) !important;
+    box-shadow: 0 1px 0 var(--hair), 0 8px 24px -12px oklch(0.2 0.02 60 / 0.10) !important;
+  }
+  [data-component="session-input-composer"]:focus-within,
+  [data-component="follow-up-composer"]:focus-within,
+  [data-component="session-follow-up-composer"]:focus-within {
+    border-color: var(--ink-2) !important;
+    box-shadow: 0 1px 0 var(--hair), 0 12px 32px -12px oklch(0.2 0.02 60 / 0.15) !important;
+  }
+
+  /* Sticky collapsible tool headers (edit/write/apply-patch) */
+  [data-component="collapsible"] > [data-slot="collapsible-trigger"][aria-expanded="true"],
+  [data-slot="accordion-trigger"] {
+    background-color: var(--surface) !important;
+  }
+
+  /* Compaction divider line */
+  [data-slot="compaction-part-line"] {
+    background: var(--hair) !important;
+  }
+
+  /* Session page top header bar */
+  [data-component="session-header"],
+  [data-slot="session-header"] {
+    background: var(--bg) !important;
+    border-bottom: 1px solid var(--hair) !important;
+  }
+}
+
+/* ── Toast overrides: top-right position + Forge success/error colours ─────── */
+
+/* Move the toast stack to the top-right corner */
+[data-component="toast-region"] {
+  top: 16px !important;
+  bottom: auto !important;
+  right: 20px !important;
+  /* Slide in from above */
+}
+
+/* Override pop animation to slide down from top */
+@keyframes forgeToastIn {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0);      }
+}
+@keyframes forgeToastOut {
+  from { opacity: 1; transform: translateY(0);      }
+  to   { opacity: 0; transform: translateY(-8px);   }
+}
+[data-component="toast"][data-opened] { animation: forgeToastIn  160ms cubic-bezier(0.22,1,0.36,1); }
+[data-component="toast"][data-closed] { animation: forgeToastOut 100ms ease-in forwards; }
+
+/* Base toast: match Forge's cream/ink palette */
+[data-component="toast"] {
+  background: var(--bg, #fffbf4) !important;
+  border: 1px solid var(--line, #e6dfd0) !important;
+  color: var(--ink, #15140f) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 16px -4px rgba(21,20,15,.12), 0 1px 3px rgba(21,20,15,.06) !important;
+  font-family: var(--font-ui, 'Geist', system-ui, sans-serif) !important;
+  padding: 12px 16px !important;
+  gap: 12px !important;
+  min-width: 280px;
+}
+
+[data-component="toast"] [data-slot="toast-title"] {
+  color: var(--ink, #15140f) !important;
+  font-size: 13.5px !important;
+  font-weight: 600 !important;
+}
+
+[data-component="toast"] [data-slot="toast-description"] {
+  color: var(--ink-2, #5c564d) !important;
+  font-size: 13px !important;
+}
+
+/* ── Success variant: green left accent + tinted bg ──────────────────────── */
+[data-component="toast"][data-variant="success"] {
+  background: #f0faf4 !important;
+  border-color: #86efac !important;
+  box-shadow: 0 4px 16px -4px rgba(22,163,74,.15), 0 1px 3px rgba(22,163,74,.08) !important;
+}
+[data-component="toast"][data-variant="success"] [data-slot="toast-title"] {
+  color: #14532d !important;
+}
+[data-component="toast"][data-variant="success"] [data-slot="toast-description"] {
+  color: #166534 !important;
+}
+[data-component="toast"][data-variant="success"]::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 20%; bottom: 20%;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: #22c55e;
+}
+
+/* ── Error variant: red left accent + tinted bg ──────────────────────────── */
+[data-component="toast"][data-variant="error"] {
+  background: #fff1f2 !important;
+  border-color: #fca5a5 !important;
+  box-shadow: 0 4px 16px -4px rgba(220,38,38,.15), 0 1px 3px rgba(220,38,38,.08) !important;
+}
+[data-component="toast"][data-variant="error"] [data-slot="toast-title"] {
+  color: #7f1d1d !important;
+}
+[data-component="toast"][data-variant="error"] [data-slot="toast-description"] {
+  color: #991b1b !important;
+}
+[data-component="toast"][data-variant="error"]::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 20%; bottom: 20%;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: #ef4444;
+}
+
+
+/* ── Forge CSS ring spinner ───────────────────────────────────────────────── */
+.forge-css-spinner {
+  display: inline-block;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border-style: solid;
+  border-color: #FF3D00 #FF3D00 transparent transparent;
+  position: relative;
+  animation: forge-css-spin 1s linear infinite;
+  /* default size — overridden inline where needed */
+  width: 18px;
+  height: 18px;
+  border-width: 3px;
+}
+
+.forge-css-spinner::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -125%);
+  width: 30%;
+  height: 30%;
+  background: #FF3D00;
+  border-radius: 50%;
+}
+
+@keyframes forge-css-spin {
+  100% { transform: rotate(360deg); }
+}
+
+/* ── Chat code blocks — neutralise the OpenCode Shiki theme & support dark mode
+   Shiki injects inline background-color + per-token colors on <pre>, <code>,
+   .line, and <span> elements. We override these so the block matches the
+   Loom Atelier surface in light mode AND Loom Midnight in dark mode (the
+   earlier override forced #1a1a1a text which collapsed against dark bg).
+
+   Also: wrap long lines instead of horizontal-scrolling them. In chat the
+   user can't see the scrollbar (markdown.css hides it) and content gets
+   silently cut. Wrapping at the panel edge keeps the code readable. */
+
+/* Light mode (default) — code block sits on a slightly inset surface
+   so it reads as a card against the cream chat bg. Tokens use the Loom
+   ink color so syntax tinting falls back to a neutral dark gray. */
+[data-component="markdown"] pre.shiki,
+[data-component="markdown"] pre.shiki code,
+[data-component="markdown"] pre.shiki .line {
+  background: var(--surface-2, oklch(0.985 0.006 75)) !important;
+  background-color: var(--surface-2, oklch(0.985 0.006 75)) !important;
+}
+[data-component="markdown"] pre.shiki {
+  border-color: var(--hair, oklch(0.88 0.008 70)) !important;
+}
+[data-component="markdown"] pre.shiki,
+[data-component="markdown"] pre.shiki code,
+[data-component="markdown"] pre.shiki .line,
+[data-component="markdown"] pre.shiki span {
+  color: var(--ink, #15140f) !important;
+}
+
+/* Wrap long lines + soft horizontal scroll fallback if a single token is
+   too wide even to wrap. Without `pre-wrap`, JSX/HTML lines like
+   `<div className="absolute top-6 md:top-10 …">` were getting clipped
+   because the parent's overflow-x: hidden swallowed the inner scroll. */
+[data-component="markdown"] pre.shiki,
+[data-component="markdown"] pre.shiki code {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+
+/* Dark mode — Loom Midnight surfaces + light ink text. Shiki's inline
+   styles get explicitly overridden via the same selector tree under the
+   [data-color-scheme="dark"] root so light + dark are completely separate. */
+[data-color-scheme="dark"] [data-component="markdown"] pre.shiki,
+[data-color-scheme="dark"] [data-component="markdown"] pre.shiki code,
+[data-color-scheme="dark"] [data-component="markdown"] pre.shiki .line {
+  background: var(--surface, oklch(0.22 0.018 260)) !important;
+  background-color: var(--surface, oklch(0.22 0.018 260)) !important;
+}
+[data-color-scheme="dark"] [data-component="markdown"] pre.shiki {
+  border-color: var(--hair, oklch(0.32 0.018 260)) !important;
+}
+[data-color-scheme="dark"] [data-component="markdown"] pre.shiki,
+[data-color-scheme="dark"] [data-component="markdown"] pre.shiki code,
+[data-color-scheme="dark"] [data-component="markdown"] pre.shiki .line,
+[data-color-scheme="dark"] [data-component="markdown"] pre.shiki span {
+  color: var(--ink, oklch(0.96 0.006 80)) !important;
+}
+
+/* Inline `code` (not inside pre) — same treatment, theme-aware. */
+[data-component="markdown"] :not(pre) > code {
+  color: var(--ink, #15140f) !important;
+  background: rgba(21,20,15,0.05) !important;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+[data-color-scheme="dark"] [data-component="markdown"] :not(pre) > code {
+  color: var(--ink, oklch(0.96 0.006 80)) !important;
+  background: rgba(255,255,255,0.08) !important;
+}
+
+/* Forge "F" mark — theme-aware empty-state logo */
+.forge-f-mark {
+  background-image: url('/forge-f-light.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+[data-color-scheme="dark"] .forge-f-mark {
+  background-image: url('/forge-f-dark.png');
+}
