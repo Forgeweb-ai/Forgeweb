@@ -107,9 +107,34 @@ if ! command -v docker >/dev/null 2>&1; then
   fi
 else
   if ! docker info >/dev/null 2>&1; then
-    die "docker is installed but the daemon isn't running. Start Docker Desktop (macOS) or 'sudo systemctl start docker' (Linux), then re-run."
+    # Try to start Docker for the user instead of dying immediately. On macOS
+    # this is `open -a Docker` (no admin prompt). On Linux it requires sudo,
+    # which we don't want to silently prompt for, so we just print instructions.
+    if [[ "$OS" == macos ]]; then
+      info "Docker is installed but not running. Trying to start Docker Desktop…"
+      if open -a Docker >/dev/null 2>&1; then
+        info "  Docker Desktop launching — waiting up to 60s for daemon…"
+        DAEMON_READY=false
+        for i in $(seq 1 60); do
+          if docker info >/dev/null 2>&1; then
+            DAEMON_READY=true
+            ok "Docker daemon ready (${i}s)"
+            break
+          fi
+          sleep 1
+          # progress dot every 10s
+          (( i % 10 == 0 )) && info "  still waiting for Docker… (${i}/60s)"
+        done
+        $DAEMON_READY || die "Docker Desktop didn't become ready within 60s. Open it manually, wait for the whale icon to stop animating, then re-run."
+      else
+        die "Couldn't start Docker Desktop automatically. Open it manually, wait for the whale icon to stop animating, then re-run."
+      fi
+    else
+      die "docker is installed but the daemon isn't running. Run 'sudo systemctl start docker' (Linux), then re-run."
+    fi
+  else
+    ok "docker installed and running"
   fi
-  ok "docker installed and running"
 fi
 
 # 2b. python3 ≥3.11
@@ -238,7 +263,37 @@ else
   fi
 fi
 
-# ── 5. Pre-flight done ───────────────────────────────────────────────────────
+# ── 5. Pre-pull base container images ────────────────────────────────────────
+# Surface network failures HERE (in install.sh, before any service tries to
+# boot) instead of mid-boot in dev.sh where the error is harder to interpret.
+# Only pulls images dev.sh + docker-compose.yml actually use directly; Supabase
+# pulls its own image set when `npx supabase start` runs.
+#
+# Skipped in --check mode (would touch the network) and when Docker is missing.
+if ! $CHECK_ONLY && command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  PREPULL_IMAGES=( "traefik:v3.0" )
+  info "Pre-pulling base images so first boot is offline-tolerant…"
+  PULL_FAILED=()
+  for img in "${PREPULL_IMAGES[@]}"; do
+    if docker image inspect "$img" >/dev/null 2>&1; then
+      ok "  $img — already present"
+    else
+      info "  pulling $img …"
+      if docker pull --quiet "$img" >/dev/null 2>&1; then
+        ok "  $img — ready"
+      else
+        warn "  $img — pull failed (will retry on first boot)"
+        PULL_FAILED+=("$img")
+      fi
+    fi
+  done
+  if (( ${#PULL_FAILED[@]} > 0 )); then
+    warn "Some images failed to pull (${PULL_FAILED[*]}). dev.sh will retry on first boot;"
+    warn "  if it fails again, check your network / Docker Hub access."
+  fi
+fi
+
+# ── 6. Pre-flight done ───────────────────────────────────────────────────────
 echo
 ok "Pre-flight checks passed."
 

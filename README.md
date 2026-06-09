@@ -2,7 +2,7 @@
 
 **Build webapps by chatting with an AI agent. Self-host it. Bring your own keys (or don't).**
 
-Forge is the open-source, self-hosted alternative to [Lovable](https://lovable.dev) and [v0.dev](https://v0.dev). Describe the app you want, an AI agent ships the code, and you keep your API keys and your code on your own machine. There is no Forge SaaS, no token resale, no telemetry. The default model is free (DeepSeek V4 Flash via opencode zen), so a fresh install works with zero API keys. Bring an Anthropic / OpenAI / Moonshot / Google / Replicate key from in-app Settings only if you want a paid model.
+Forge is the open-source, self-hosted alternative to [Lovable](https://lovable.dev) and [v0.dev](https://v0.dev). Describe the app you want, an AI agent ships the code, and you keep your API keys and your code on your own machine. There is no Forge SaaS, no token resale, no telemetry. The default model is free (DeepSeek V4 Flash via opencode zen) from opencode, so a fresh install works with zero API keys. Bring an Anthropic / OpenAI / Moonshot / Google / Replicate key from in-app Settings only if you want a paid model.
 
 [Live page → forgeweb.ai](https://forgeweb.ai) · [License: BSL 1.1](LICENSE) · Built on [opencode](https://github.com/sst/opencode) (MIT)
 
@@ -10,52 +10,40 @@ Forge is the open-source, self-hosted alternative to [Lovable](https://lovable.d
 
 ## Quick start
 
-Two install paths. Both stay on your machine. Pick one.
-
-### Path A — Docker image (recommended)
-
-Pulls prebuilt images from the container registry. Two commands, no source clone.
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Forgeweb-ai/Forgeweb/main/docker-compose.release.yml \
-  -o docker-compose.yml
-docker compose up -d
-```
-
-Then open <http://app.forge.localhost> and sign up.
-
-### Path B — From source (for contributors)
-
-Use this if you want to modify Forge itself.
+You need **Docker Desktop** (macOS / Windows) or **Docker Engine + Compose v2** (Linux) installed and running. Nothing else on the host — no Python, no Node, no bun.
 
 ```bash
 git clone https://github.com/Forgeweb-ai/Forgeweb.git
-cd forge
+cd Forgeweb
+docker compose up -d
+```
+
+Then open <http://app.forge.localhost> and sign up. First boot builds 4 images (~10 minutes on a clean machine); subsequent boots are seconds.
+
+The stack self-bootstraps: compose creates the `forge-net` network, Postgres comes up healthy, `forge-server`'s entrypoint waits for it, runs `alembic upgrade head`, builds the per-project `forge-runner` image if missing, then starts uvicorn. The default model is opencode zen's free DeepSeek V4 Flash, so a fresh sign-up can chat immediately without any API keys.
+
+To stop: `docker compose down`. To rebuild after pulling changes: `docker compose up -d --build`.
+
+### For development (hot reload)
+
+If you want to edit the source and see changes live, the source-mode install runs services natively with watch mode:
+
+```bash
 ./install.sh
 ```
 
-`install.sh` verifies prerequisites (Docker, Python 3.11+, bun, ~10 GB free disk), generates a JWT secret, and hands off to `dev.sh` to bring everything up.
+`install.sh` checks prerequisites (Docker, Python 3.11+, Node 20+ for the local Supabase, bun ≥1.3.14 — auto-installed), generates a JWT secret, pre-pulls base images, and hands off to `dev.sh`. After first install, daily restarts are just `./dev.sh`.
 
 ### Prerequisites
 
-**You install these yourself (they need admin / OS-level setup):**
-
-- **Docker Desktop** (macOS / Windows) or **Docker Engine + Compose v2** (Linux) — must be installed *and* running before `./install.sh`. Docker needs admin rights on first install; if your machine is corp-locked and you can't get admin, Forge won't run.
-- **Python 3.11+** — `brew install python@3.11` (macOS) or your distro's `python3.11` + `python3.11-venv` package.
-- **Node.js + npx** — `dev.sh` boots the local Supabase via `npx supabase`. Install Node 20+ from [nodejs.org](https://nodejs.org) or via `brew install node` / your package manager.
-
-**`install.sh` handles these automatically:**
-
-- **bun** ≥1.3.14 — downloaded via the official one-liner into `~/.bun/bin` (no sudo). Needs network access to bun.sh and a writable `$HOME`.
-- **JWT_SECRET** — generated via `openssl rand -hex 32` and written to `.env` (mode 600).
-- **`.env` file** — copied from `.env.example` if missing.
-- **Local Supabase** — Postgres + Auth + Storage + Studio booted by `dev.sh` via `npx supabase start`.
-
-**Machine requirements:**
-
-- ~4 GB free RAM
-- ~10 GB free disk for images + project workspaces
-- macOS, Linux, or Windows with WSL2
+| | Docker path | `install.sh` path |
+|---|---|---|
+| Docker Desktop / Engine | required | required |
+| Python 3.11+ | not needed | required |
+| Node.js 20+ | not needed | required (for `npx supabase`) |
+| bun ≥1.3.14 | not needed | auto-installed by `install.sh` |
+| ~4 GB RAM, ~10 GB disk | required | required |
+| Supported OSes | macOS, Linux, Windows + WSL2 | macOS, Linux, Windows + WSL2 |
 
 ### If `install.sh` fails
 
@@ -63,13 +51,13 @@ cd forge
 |---|---|---|
 | `Can't reach https://bun.sh within 5s` | Corporate proxy, captive portal, or offline | Install bun manually from [bun.sh](https://bun.sh), then re-run `./install.sh`. |
 | `$HOME is not writable` | Home directory on a NAS / SMB mount / locked-down corp Mac | Install bun system-wide, or clone Forge under a writable location with a writable `$HOME`. |
-| `docker is installed but the daemon isn't running` | Docker Desktop not started | Start Docker Desktop (macOS/Windows) or `sudo systemctl start docker` (Linux). |
-| `npx supabase start` fails | Node not installed or wrong version | Install Node 20+ and re-run `./dev.sh`. |
+| `docker is installed but the daemon isn't running` | Docker Desktop not started | Start Docker Desktop (macOS/Windows) or `sudo systemctl start docker` (Linux). The script tries to start it for you on macOS first. |
+| `npx supabase start` fails | Node not installed or wrong version | Install Node 20+ and re-run `./dev.sh`. The Docker path doesn't need this. |
 | `chmod 600 failed` (warning, not fatal) | Filesystem doesn't honor POSIX modes (NAS/exFAT) | Move the repo to a local disk before adding real provider keys. |
 
-Run `./install.sh --check` to dry-run all the checks without changing anything — useful before you commit to a full install.
+Run `./install.sh --check` to dry-run prerequisite checks without changing anything.
 
-The installer also brings up a **local Supabase** on your machine — that's where your account, your project list, and your encrypted provider keys live. You don't configure it, you don't connect to a hosted one; it just runs. Paid-model keys go in via in-app Settings after sign-up.
+The Docker path uses plain Postgres for Forge's own metadata; the `install.sh` path runs a local Supabase stack (more services, more disk). Both store your account, project list, and encrypted provider keys locally on your machine. Paid-model keys are added via in-app Settings after sign-up.
 
 ---
 
@@ -128,7 +116,7 @@ For deeper detail — what each service does, how snapshots work, how the BYOK k
 
 ## Documentation
 
-- [`landing/index.html`](landing/index.html) — the full user-facing docs, including the architecture diagram and FAQ-style deep-dives.
+- [forgeweb.ai](https://forgeweb.ai) — full user-facing docs, architecture diagram, FAQ-style deep-dives.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — repo layout, dev environment, PR conventions.
 - [`LICENSE`](LICENSE) — Business Source License 1.1.
 - [`NOTICE`](NOTICE) — third-party attribution (opencode MIT, dependencies).

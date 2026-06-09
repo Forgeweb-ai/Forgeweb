@@ -8,30 +8,42 @@ If you're here to just *use* Forge, the [README](README.md) is the right startin
 
 ## Quick dev setup
 
-Forge has two install paths. For contributing, use the from-source path so you can edit the code and see changes immediately.
+There are two ways to run Forge locally. For most contributor work — editing TS/Python source and seeing changes immediately — use the source path. Use the Docker path when you want to test the production-shape stack, reproduce a user-reported bug, or hack on the compose/entrypoint themselves.
+
+**Source path (hot reload, recommended for code edits):**
 
 ```bash
 git clone https://github.com/Forgeweb-ai/Forgeweb.git
-cd forge
+cd Forgeweb
 ./install.sh
 ```
 
-`install.sh` runs once to verify prerequisites (Docker, Python 3.11+, bun, ~10 GB free disk), generate a JWT secret, and hand off to `./dev.sh`. For daily restarts use `./dev.sh` directly.
+`install.sh` runs once: verifies prerequisites (Docker, Python 3.11+, Node 20+, bun ≥1.3.14 — auto-installed), generates a JWT secret, pre-pulls base images, and hands off to `./dev.sh`. Daily restarts are `./dev.sh` directly. Vite watches `forge-ui/`, uvicorn auto-reloads `forge-server/`, opencode runs from source under bun.
 
-Services after boot:
+**Docker path (production-shape, no host deps beyond Docker):**
 
-- **forge-ui** — the chat UI, at `http://app.forge.localhost`
-- **forge-server** — the API at `http://api.forge.localhost`
-- **opencode** — the AI agent runtime
+```bash
+git clone https://github.com/Forgeweb-ai/Forgeweb.git
+cd Forgeweb
+docker compose up -d
+```
+
+Self-bootstrapping: compose creates the `forge-net` network, `forge-server`'s entrypoint waits for Postgres, runs `alembic upgrade head`, and builds the per-project `forge-runner` image. First build is ~10 min; rebuilds are seconds. Use this to verify a change works end-to-end against the same image set users will run.
+
+Services after boot (either path):
+
+- **forge-ui** — the chat UI, at <http://app.forge.localhost>
+- **forge-server** — the API at <http://api.forge.localhost>
+- **opencode** — the AI agent runtime (internal, on `forge-net`)
 - **forge-llm-proxy** — audit log between the agent and any paid model
-- **Supabase / Postgres** — Forge's own storage (set up automatically)
+- **Postgres** — Forge's own storage. Source path runs Supabase (`:54322` + Studio at `:54323`); Docker path uses a plain `postgres:16-alpine`.
 
 ---
 
 ## How the repo is laid out
 
 ```
-forge/
+Forgeweb/
 ├── forge-ui/                 # SolidJS chat UI
 ├── forge-server/             # FastAPI orchestrator + BYOK vault
 ├── forge-llm-proxy/          # Audit log for every AI call
@@ -39,11 +51,9 @@ forge/
 ├── opencode/                 # Vendored fork of opencode (keep close to upstream)
 ├── traefik/                  # Local routing
 ├── supabase/                 # Local Supabase config
-├── landing/                  # The landing page at forgeweb.ai
 ├── install.sh                # First-run bootstrap
 ├── dev.sh                    # Daily start script
-├── docker-compose.yml        # Source-build compose (for contributors)
-└── docker-compose.release.yml # Released-image compose (for users)
+└── docker-compose.yml        # Source-build compose
 ```
 
 **Rule of thumb on `opencode/`.** It's a vendored fork of [sst/opencode](https://github.com/sst/opencode), kept as close to upstream as possible. If your change is something upstream would accept (a generic bug fix, a provider addition, an SDK update), **file it upstream first** — that benefits the wider opencode community and means we can drop our patch when upstream merges. If your change is Forge-specific (BYOK middleware, our skill catalog, the design-pool, the verify subagent), it lives in our fork.
@@ -80,11 +90,19 @@ forge/
 
 ---
 
-## Local Supabase notes
+## Local Supabase notes (source path only)
 
-`dev.sh` runs `npx supabase start`, which boots Supabase's local stack on Docker. If `supabase status` ever wedges, `npx supabase stop && npx supabase start` from the repo root is the standard reset. The local Studio is at `http://localhost:54323`, the Postgres is at `localhost:54322`, and the service-role key for storage operations is captured into the forge-server env automatically.
+`dev.sh` runs `npx supabase start`, which boots Supabase's local stack on Docker. If `supabase status` ever wedges, `npx supabase stop && npx supabase start` from the repo root is the standard reset. The local Studio is at <http://localhost:54323>, the Postgres is at `localhost:54322`, and the service-role key for storage operations is captured into the forge-server env automatically.
 
 If you're hacking on the snapshot worker or anything storage-related, browse the local Studio to see the actual rows — much faster than reading code.
+
+The Docker path uses plain Postgres (no Supabase Storage), so snapshot worker no-ops cleanly there. If you're testing snapshot/storage features, use the source path.
+
+## Docker path notes
+
+`docker-compose.yml` mounts `./forge-opencode-config` read-write into the opencode container because opencode's `Config.loadInstanceState` writes a managed `.gitignore` and instance state into its config dir at startup. Repo-level `.gitignore` excludes opencode-generated files in that folder so they don't pollute `git status` — but if you see uncommitted `.gitignore` / `*.db` / instance-state files appear there, that's expected and gitignored.
+
+`forge-server`'s entrypoint (`forge-server/docker-entrypoint.py`) runs alembic on every container start. Migrations must be idempotent — adding a one-way DDL change breaks restart for everyone, not just new installs.
 
 ---
 
