@@ -48,12 +48,14 @@ services:
       dockerfile: Dockerfile.forge
     container_name: forge-opencode
     restart: unless-stopped
-    # Source the root .env so opencode sees the same vars dev.sh exports
-    # into its opencode subshell — DESIGN_ANALYST_MODEL, the {env:*_API_KEY}
-    # placeholder fallbacks, etc. Per-user keys still come from the resolver
-    # (BYOK); these env values are just the platform-level defaults the
-    # config file references via {env:...} substitution.
-    env_file: .env
+    # DO NOT add `env_file: .env` here. Opencode hosts the agent's shell/exec
+    # tools; any var in process.env is one `env` call away from the model.
+    # The .env file holds FORGE_INTERNAL_SECRET, POSTGRES_PASSWORD, and the
+    # platform's *_API_KEY values — none of which the agent (or any code it
+    # writes) should ever see. Per-user keys arrive on the X-Forge-Auth
+    # header and are scoped to a single provider request by the resolver.
+    # If a new platform-side env is genuinely needed by opencode itself,
+    # add it as an explicit named entry below — never via env_file.
     working_dir: /opencode
     # Run the vendored fork from source under bun. The npm package
     # opencode-ai@latest does NOT include the Forge Phase 2 patches

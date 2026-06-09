@@ -435,14 +435,53 @@ export const ShellTool = Tool.define(
       return scan
     })
 
+    // ── Forge env-isolation policy ───────────────────────────────────────────
+    // The shell tool spawns child processes that are at the disposal of the
+    // model (and, by extension, any prompt injection). Spreading process.env
+    // wholesale lets the model read FORGE_INTERNAL_SECRET, DATABASE_URL,
+    // POSTGRES_PASSWORD, ANTHROPIC_API_KEY, and similar with a one-line
+    // `env | grep` — the leak the user reported.
+    //
+    // Build the child env from an explicit allow-list instead. Any var
+    // forge-server intentionally exposes per-session (e.g. FORGE_PROJECT_ID,
+    // FORGE_USER_ID) arrives via the plugin hook below and is merged in.
+    // Adding to FORGE_SHELL_ENV_ALLOWLIST is the only way a platform-side
+    // value can reach the model's shell — making the security review trivial.
+    const FORGE_SHELL_ENV_ALLOWLIST = new Set<string>([
+      // Standard POSIX shell expectations
+      "PATH", "HOME", "USER", "SHELL", "TERM", "PWD",
+      "TZ", "LANG", "LC_ALL", "LC_CTYPE", "LC_COLLATE", "LC_MESSAGES",
+      // Toolchain home dirs that legitimately point at on-disk caches, not secrets
+      "TMPDIR", "TMP", "TEMP",
+      // Node / bun runtime — opencode boots under these, no secret content
+      "NODE_ENV", "BUN_INSTALL", "NODE_PATH",
+      // pnpm / npm caches — shared on-disk store, no credential content
+      "PNPM_HOME", "PNPM_STORE_DIR", "NPM_CONFIG_CACHE",
+      // Color / TTY hints — affects formatting only
+      "NO_COLOR", "FORCE_COLOR", "COLORTERM",
+    ])
+
+    const sanitizeProcessEnv = (): NodeJS.ProcessEnv => {
+      const out: NodeJS.ProcessEnv = {}
+      for (const key of Object.keys(process.env)) {
+        if (FORGE_SHELL_ENV_ALLOWLIST.has(key)) {
+          out[key] = process.env[key]
+        }
+      }
+      return out
+    }
+
     const shellEnv = Effect.fn("ShellTool.shellEnv")(function* (ctx: Tool.Context, cwd: string) {
       const extra = yield* plugin.trigger(
         "shell.env",
         { cwd, sessionID: ctx.sessionID, callID: ctx.callID },
         { env: {} },
       )
+      // process.env is sanitized through the allow-list FIRST; plugin-supplied
+      // values come last so they can intentionally inject per-session context
+      // (FORGE_PROJECT_ID, FORGE_USER_ID, ...) that we want the model to see.
       return {
-        ...process.env,
+        ...sanitizeProcessEnv(),
         ...extra.env,
       }
     })
@@ -639,6 +678,36 @@ export const ShellTool = Tool.define(
               const cwd = params.workdir
                 ? yield* resolvePath(params.workdir, instanceCtx.directory, shell)
                 : instanceCtx.directory
+
+              // Forge project-scope guard
+              // ──────────────────────────────────────────────────────────────
+              // When opencode runs as part of Forge (signalled by the presence
+              // of FORGE_INTERNAL_SECRET in process.env — same gate forge-user
+              // middleware uses), every shell command MUST execute inside
+              // /forge-data/. The instance directory is set per-session to the
+              // user's project workspace; a model that tries to `cd /etc`,
+              // `cd /root`, or `--workdir=/forge-data/users/<other>` resolves
+              // OUTSIDE that scope and is refused here with a clear error
+              // instead of leaking host paths to the model output.
+              //
+              // Non-Forge runs (CLI, tests) leave FORGE_INTERNAL_SECRET unset
+              // and skip the check, preserving upstream behaviour.
+              if (process.env.FORGE_INTERNAL_SECRET) {
+                const FORGE_ROOT = "/forge-data"
+                const resolvedCwd = require("node:path").resolve(cwd)
+                if (
+                  resolvedCwd !== FORGE_ROOT &&
+                  !resolvedCwd.startsWith(FORGE_ROOT + "/")
+                ) {
+                  throw new Error(
+                    "Shell tool is sandboxed to the current project workspace " +
+                    "(/forge-data/...). Path '" + cwd + "' is outside that scope. " +
+                    "If you need to do something here, do it via a write/edit tool " +
+                    "scoped to the project, not a shell escape.",
+                  )
+                }
+              }
+
               if (params.timeout !== undefined && params.timeout < 0) {
                 throw new Error(`Invalid timeout value: ${params.timeout}. Timeout must be a positive number.`)
               }
