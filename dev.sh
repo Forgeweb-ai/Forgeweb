@@ -6,14 +6,14 @@
 #   ./dev.sh
 #
 # This script is fully self-contained:
-#   - Installs bun deps (opencode monorepo + forge-ui-new workspace)
+#   - Installs bun deps (opencode monorepo + forge-ui workspace)
 #   - Creates a Python venv for forge-server and installs deps
 #   - Starts all three services and opens the browser
 #
 # Services:
 #   :7777  OpenCode server  (AI coding agent backend)
 #   :8000  forge-server     (FastAPI — project CRUD, auth, config)
-#   :3000  forge-ui-new     (Vite/SolidJS — the Forge UI)
+#   :3000  forge-ui     (Vite/SolidJS — the Forge UI)
 #   :54321 Supabase API (boots automatically — Postgres on 54322, Studio on 54323)
 #
 # Prerequisites (must be installed manually):
@@ -64,8 +64,13 @@ check_tool() { command -v "$1" >/dev/null 2>&1 || die "'$1' not found. Install i
 check_tool bun      "https://bun.sh"
 check_tool python3  "https://python.org (3.11+)"
 check_tool docker   "https://docs.docker.com/get-docker/"
-# Note: the `supabase` CLI is only required if Postgres isn't already running
-# on :54322. We check for it lazily inside the Supabase bootstrap step below.
+# `npx` is only needed if we have to BOOT Supabase. Checked lazily below so
+# users who already have Postgres on :54322 don't need Node installed.
+need_npx() {
+  command -v npx >/dev/null 2>&1 || die "npx not found (needed to boot the \
+local Supabase stack). Install Node.js 20+ from https://nodejs.org or via \
+'brew install node' (macOS) / your distro's nodejs package (Linux), then re-run."
+}
 
 # ── Free ports ────────────────────────────────────────────────────────────────
 free_port() {
@@ -95,14 +100,25 @@ mkdir -p "$FORGE_DATA_ROOT"
 # Forge's metadata moved off SQLite — see [[forge_storage_architecture]].
 DATABASE_URL="${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@127.0.0.1:54322/postgres}"
 
+# Shared HMAC secret between forge-server's opencode_proxy and opencode's
+# forge-user middleware. Both processes MUST see the same value or the
+# per-user agent-model resolver fails closed (warns + falls back to parent
+# chat model). Dev default is fine for local; production must set
+# FORGE_INTERNAL_SECRET in the environment.
+FORGE_INTERNAL_SECRET="${FORGE_INTERNAL_SECRET:-dev-only-internal-secret-do-not-ship}"
+
+# Where opencode's resolver calls back into forge-server. Localhost in dev;
+# the docker-network DNS name in prod.
+FORGE_API_URL="${FORGE_API_URL:-http://127.0.0.1:${BE_PORT:-8000}}"
+
 # Supabase service role key for storage operations. dev.sh picks it up from
 # Supabase CLI status output below; you can also set it manually via env or
 # forge-server/.env. Empty value = snapshot worker no-ops cleanly.
 SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY:-}"
 
-# ── Step 1: Bun deps (opencode monorepo — includes forge-ui-new workspace) ───
+# ── Step 1: Bun deps (opencode monorepo — includes forge-ui workspace) ───
 info "Checking bun dependencies…"
-# forge-ui-new is a workspace in opencode/package.json, so install from there.
+# forge-ui is a workspace in opencode/package.json, so install from there.
 if [[ ! -d "$ROOT/opencode/node_modules" ]]; then
   info "Running bun install in opencode/ (first run — may take a minute)…"
   bun install --cwd "$ROOT/opencode" 2>&1 | pipe_prefix "bun-install" '\033[0;35m'
@@ -246,6 +262,7 @@ if lsof -t -i tcp:54322 >/dev/null 2>&1; then
   SUPABASE_RUNNING=true
 else
   # No Postgres yet — we'll need the CLI to boot one.
+  need_npx
   info "Starting Supabase via npx (first run pulls ~6 Docker images — may take a few minutes)…"
   # supabase init creates supabase/config.toml on first run. Safe to skip if it already exists.
   if [[ ! -f "$ROOT/supabase/config.toml" ]]; then
@@ -285,6 +302,45 @@ if [[ -z "$SUPABASE_SERVICE_ROLE_KEY" ]]; then
     warn "\`npx supabase status\` failed or timed out after 10s — skipping service-role-key capture."
   fi
 fi
+
+# ── Step 2c.5: Wait for Postgres to actually accept connections ───────────────
+# `npx supabase start` returns when the CONTAINERS report healthy, not when
+# Postgres-inside-the-container has finished init_db + bound :54322 on the
+# host. After a Mac restart this window can be 5–30s; alembic firing during
+# that window gets weird errors (EADDRNOTAVAIL on macOS, not just refused).
+# A short bounded wait turns a flaky boot into a deterministic one.
+wait_for_postgres() {
+  local timeout=45
+  local elapsed=0
+  while (( elapsed < timeout )); do
+    # asyncpg-level check — same driver alembic uses, so if THIS succeeds,
+    # alembic will too. The "+asyncpg" SQLAlchemy suffix is stripped because
+    # asyncpg's connect() doesn't understand it.
+    local plain="${DATABASE_URL/postgresql+asyncpg:/postgresql:}"
+    if "$VENV/bin/python" -c "
+import asyncio, asyncpg, sys
+async def go():
+    try:
+        c = await asyncpg.connect('$plain', timeout=2)
+        await c.close()
+    except Exception as e:
+        sys.exit(1)
+asyncio.run(go())
+" 2>/dev/null; then
+      ok "Postgres on :54322 is accepting connections (${elapsed}s)"
+      return 0
+    fi
+    sleep 1
+    ((elapsed++))
+    # Progress dot every 5s so a long wait isn't silent
+    (( elapsed % 5 == 0 )) && info "  still waiting for Postgres… (${elapsed}/${timeout}s)"
+  done
+  return 1
+}
+info "Waiting for Postgres on :54322 to accept connections…"
+wait_for_postgres || die "Postgres on :54322 didn't accept connections within 45s. \
+Check 'docker ps | grep supabase' — the supabase_db container should be running and healthy. \
+If it's missing, run 'npx supabase stop && npx supabase start' from this directory."
 
 # ── Step 2d: Alembic schema migration ─────────────────────────────────────────
 info "Applying Alembic migrations…"
@@ -365,79 +421,71 @@ LOCAL_PROXY="http://127.0.0.1:${LLM_PROXY_PORT}"
 mkdir -p "$LOCAL_OC_DIR"
 
 if [[ -f "$ROOT/forge-opencode-config/opencode.json" ]]; then
-  # Priority order for DESIGN_ANALYST_MODEL:
-  #  1. Already set in environment (highest precedence)
-  #  2. user_settings table in the forge.db (set via UI → Settings → Manage Models)
-  #  3. forge-server/.env fallback
-  #  4. Hard-coded default: claude-sonnet-4-6
-
-  # Single DB read returns both models so we don't open two psycopg2
-  # connections at boot. Output format: "<primary>|<design>" — chosen because
-  # neither model id contains a pipe. Empty halves are tolerated downstream.
-  #
-  # NOTE: this is a boot-time, last-row read and is multi-tenancy-incorrect by
-  # construction (process-global, shared across all users). It's the explicit
-  # stopgap noted in the BYOK rework — the proper fix is the opencode fork
-  # passing per-request {user_id, model} so forge-server can resolve from the
-  # right user_settings row on every call. Until that ships, this preserves
-  # the dev-loop behaviour of "I picked a model in Settings, it sticks."
-  if [[ -z "${DESIGN_ANALYST_MODEL:-}" || -z "${PRIMARY_MODEL:-}" ]]; then
-    _MODEL_PAIR="$("$VENV/bin/python" -c "
-import json, os, re
-try:
-    import psycopg2
-except ImportError:
-    raise SystemExit(0)
-url = os.environ.get('DATABASE_URL') or '${DATABASE_URL}'
-url = re.sub(r'^postgresql\+[a-z0-9]+://', 'postgresql://', url)
-try:
-    con = psycopg2.connect(url)
-    cur = con.cursor()
-    cur.execute('''
-        SELECT us.settings_json FROM user_settings us
-        JOIN users u ON u.id = us.user_id
-        ORDER BY us.updated_at DESC LIMIT 1
-    ''')
-    row = cur.fetchone()
-    if row:
-        data = json.loads(row[0])
-        print('%s|%s' % (data.get('primary_model', ''), data.get('design_model', '')))
-except Exception:
-    pass
-" 2>/dev/null)"
-    if [[ -z "${PRIMARY_MODEL:-}" ]]; then
-      PRIMARY_MODEL="${_MODEL_PAIR%%|*}"
-    fi
-    if [[ -z "${DESIGN_ANALYST_MODEL:-}" ]]; then
-      DESIGN_ANALYST_MODEL="${_MODEL_PAIR##*|}"
-    fi
-    unset _MODEL_PAIR
-  fi
-
-  if [[ -z "${DESIGN_ANALYST_MODEL:-}" && -f "$ROOT/forge-server/.env" ]]; then
-    DESIGN_ANALYST_MODEL="$(grep -E '^DESIGN_ANALYST_MODEL=' "$ROOT/forge-server/.env" 2>/dev/null | head -1 | cut -d= -f2-)"
-  fi
-  DESIGN_ANALYST_MODEL="${DESIGN_ANALYST_MODEL:-anthropic/claude-sonnet-4-6}"
+  # design-analyst / design-critic model is now resolved per-request by the
+  # opencode-side resolver in src/forge/agent-model.ts using the user's
+  # design_model from forge-server. dev.sh only substitutes the two
+  # container→host path tokens; the agent.model sentinel passes through
+  # verbatim so the resolver sees it on every dispatch.
   PRIMARY_MODEL="${PRIMARY_MODEL:-opencode/deepseek-v4-flash-free}"
-  # Export so the opencode subshell sees it — picked up by the upcoming
-  # per-request auth path in the opencode fork. Today's opencode ignores it,
-  # which is fine: no behavioural regression.
   export PRIMARY_MODEL
 
-  # Substitute container-only paths → host equivalents + the design model.
+  # Substitute container-only paths → host equivalents, and merge in any
+  # user-added entries from the existing local file. The "merge" step is
+  # what fixes "custom provider info is not saving":
+  #   1. opencode's globalConfigFile() picks opencode.json as its write
+  #      target when it exists (config.ts:340), so the FE's custom-provider
+  #      save lands here.
+  #   2. Before this change, this block clobbered that file every dev.sh
+  #      run with the bare platform template — wiping user-added providers
+  #      and disabled_providers entries.
+  #   3. We now READ the existing file, extract only the user-added bits
+  #      (providers NOT in the platform template + the disabled list), and
+  #      fold them into the freshly-substituted platform template before
+  #      writing. Platform-owned keys still win on conflict — a user can't
+  #      redefine `anthropic` to point upstream and bypass the proxy.
   # python3 over sed because paths/JSON contain chars sed would need escaped.
   python3 -c "
-import json, sys
-src = open(sys.argv[1]).read()
-src = src.replace('\"/forge-skills\"',           json.dumps(sys.argv[2]))
-src = src.replace('http://forge-llm-proxy:7799', sys.argv[3])
-src = src.replace('__DESIGN_MODEL__',            sys.argv[4])
-open(sys.argv[5], 'w').write(src)
-" "$ROOT/forge-opencode-config/opencode.json" "$LOCAL_SKILLS" "$LOCAL_PROXY" "$DESIGN_ANALYST_MODEL" "$LOCAL_OC_DIR/opencode.json"
+import json, os, sys
+platform = json.loads(open(sys.argv[1]).read())
+# Token substitution (do it on the parsed dict's JSON form so escaping is correct)
+text = json.dumps(platform)
+text = text.replace('\"/forge-skills\"',         json.dumps(sys.argv[2]))
+text = text.replace('http://forge-llm-proxy:7799', sys.argv[3])
+platform = json.loads(text)
+
+# Preserve user-added entries from any prior local file.
+out_path = sys.argv[4]
+preserved_providers = 0
+preserved_disabled  = 0
+if os.path.exists(out_path):
+    try:
+        existing = json.loads(open(out_path).read())
+    except Exception:
+        existing = {}
+    # User providers = providers in existing that are NOT in platform template.
+    plat_p = (platform.get('provider') or {})
+    exi_p  = (existing.get('provider') or {})
+    user_only = {k: v for k, v in exi_p.items() if k not in plat_p}
+    if user_only:
+        platform['provider'] = {**plat_p, **user_only}
+        preserved_providers = len(user_only)
+    # Preserve disabled_providers wholesale — a list of provider IDs the
+    # user opted out of. Merge by union so platform defaults still apply
+    # plus anything the user added.
+    plat_d = list(platform.get('disabled_providers') or [])
+    exi_d  = list(existing.get('disabled_providers') or [])
+    merged_d = list(dict.fromkeys(plat_d + exi_d))  # dedupe, preserve order
+    if merged_d != plat_d:
+        platform['disabled_providers'] = merged_d
+        preserved_disabled = len(set(exi_d) - set(plat_d))
+
+open(out_path, 'w').write(json.dumps(platform, indent=2))
+print(f'preserved {preserved_providers} user provider(s), {preserved_disabled} user disabled entry(s)')
+" "$ROOT/forge-opencode-config/opencode.json" "$LOCAL_SKILLS" "$LOCAL_PROXY" "$LOCAL_OC_DIR/opencode.json"
   ok "Platform opencode config installed → $LOCAL_OC_DIR/opencode.json"
   ok "  - skills.paths        → $LOCAL_SKILLS"
   ok "  - anthropic base      → $LOCAL_PROXY/v1"
-  ok "  - design subagent     → $DESIGN_ANALYST_MODEL"
+  ok "  - design subagent     → resolved per-request from user_settings"
   ok "  - primary model       → $PRIMARY_MODEL (exported for opencode fork)"
 else
   warn "forge-opencode-config/opencode.json missing — subagents won't be defined."
@@ -446,18 +494,18 @@ fi
 (
   cd "$ROOT/opencode/packages/opencode"
 
-  # Load API keys for opencode. Without this the opencode subshell launches
-  # with no ANTHROPIC_API_KEY and every session goes "thinking → done" with
-  # no response.
+  # Load non-LLM env vars into the opencode subshell (DATABASE_URL,
+  # JWT_SECRET, DESIGN_ANALYST_MODEL, etc.). LLM provider keys are NOT
+  # in either .env anymore — they're per-user, Fernet-encrypted in
+  # user_provider_keys, and injected per-request by the resolver. The
+  # default model is opencode zen's free DeepSeek V4 Flash, which needs
+  # no key at all. opencode.json's {env:MOONSHOT_API_KEY} placeholders
+  # resolve to empty strings and the resolver overrides them on every
+  # authenticated request.
   #
-  # We source TWO env files, in this order:
-  #   1. $ROOT/.env             (root — MOONSHOT_API_KEY, GOOGLE_API_KEY,
-  #                              the vendor keys opencode resolves via
-  #                              {env:...} in opencode.json)
-  #   2. $ROOT/forge-server/.env (legacy — kept for ANTHROPIC_API_KEY and
-  #                              DESIGN_ANALYST_MODEL until consolidation)
-  # Later file wins on collision — forge-server/.env can override the root
-  # for backend-specific values.
+  # We still source both env files (in this order) for the non-LLM
+  # config they carry. Later file wins on collision — forge-server/.env
+  # can override root for backend-specific values.
   if [[ -f "$ROOT/.env" ]]; then
     set -o allexport
     # shellcheck disable=SC1091
@@ -475,6 +523,12 @@ fi
   # touching the user's ~/.config/opencode/. opencode reads xdgConfig/opencode/
   # which respects $XDG_CONFIG_HOME — see opencode/packages/core/src/global.ts.
   export XDG_CONFIG_HOME="$LOCAL_XDG"
+
+  # Forge per-request internal auth. opencode's forge-user middleware verifies
+  # X-Forge-Internal-Token with this; the agent-model resolver calls back into
+  # forge-server at FORGE_API_URL. Both must match what forge-server sees.
+  export FORGE_INTERNAL_SECRET="$FORGE_INTERNAL_SECRET"
+  export FORGE_API_URL="$FORGE_API_URL"
 
   bun run --conditions=browser ./src/index.ts serve \
     --port "$OPENCODE_PORT" \
@@ -514,6 +568,10 @@ INTENDED_FORGE_DATA_ROOT="$FORGE_DATA_ROOT"
   export OPENCODE_URL="http://127.0.0.1:${OPENCODE_PORT}"
   export PREVIEW_DOMAIN="${PREVIEW_DOMAIN:-preview.lvh.me}"
   export PREVIEW_SCHEME="${PREVIEW_SCHEME:-http}"
+  # Same internal secret used by the opencode subshell to sign per-request
+  # X-Forge-Internal-Token. Must match — verification will reject if they
+  # drift.
+  export FORGE_INTERNAL_SECRET="$FORGE_INTERNAL_SECRET"
 
   uvicorn forge_server.app:app \
     --reload \
@@ -524,10 +582,10 @@ INTENDED_FORGE_DATA_ROOT="$FORGE_DATA_ROOT"
 ) &
 PIDS+=($!)
 
-# ── Step 5: forge-ui-new (Vite / SolidJS) ────────────────────────────────────
+# ── Step 5: forge-ui (Vite / SolidJS) ────────────────────────────────────
 info "Starting forge-ui on :${FE_PORT}…"
 (
-  cd "$ROOT/forge-ui-new"
+  cd "$ROOT/forge-ui"
 
   # Tell the UI which OpenCode port and where forge-server lives
   export VITE_OPENCODE_SERVER_PORT="$OPENCODE_PORT"

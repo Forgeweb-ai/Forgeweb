@@ -3,7 +3,7 @@
 .env.*
 !.env.example
 forge-server/.env
-forge-ui-new/.env
+forge-ui/.env
 forge/.env
 
 # Python
@@ -78,3 +78,12 @@ tmp/
 /*.tar
 /*.tar.gz
 /*.tgz
+
+# Local secrets-audit output — never commit
+SECRETS_AUDIT.local.md
+
+# forge-server smoke artifacts
+forge-server/*.png
+
+# forge-server smoke artifacts
+forge-server/*.png

@@ -1,0 +1,40 @@
+Forge
+Copyright 2026 Forge (forgeweb.ai)
+
+This product includes software developed by third parties under their
+respective licenses. Their copyright notices and license texts are
+preserved with the relevant source files. Key components:
+
+────────────────────────────────────────────────────────────────────────
+opencode  (https://github.com/sst/opencode)
+  Subtree:  opencode/
+  License:  MIT — see opencode/LICENSE
+  Notes:    Vendored fork. Forge ships modifications to opencode under
+            the same MIT license as the upstream; see opencode/LICENSE
+            for the upstream copyright. Modifications include the Forge
+            authentication middleware, per-request key suppression, and
+            additional skills/subagents. Forge platform code OUTSIDE
+            opencode/ is licensed under the Business Source License 1.1
+            (see LICENSE at the repo root); only the opencode/ subtree
+            remains MIT.
+
+────────────────────────────────────────────────────────────────────────
+Runtime dependencies
+
+  Python (forge-server):    see forge-server/requirements.txt
+  Node/Bun (forge-ui):      see forge-ui/package.json
+                            and opencode/package.json
+  Container images:         postgres:16-alpine, redis:7-alpine,
+                            traefik:v3.0 — each governed by its
+                            upstream license.
+
+Full per-dependency attribution is generated at build time and shipped
+inside the distributable image. Source-level license texts for every
+direct dependency can be reproduced from the lockfiles above with
+standard tooling (pip-licenses for Python, license-checker for Node).
+
+────────────────────────────────────────────────────────────────────────
+This NOTICE file is required by the Apache 2.0 License for the
+Apache-licensed components of this product (notably the eventual
+Change License of Forge itself). It is provided here in advance so
+attribution is preserved from day one.

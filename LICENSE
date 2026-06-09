@@ -1,0 +1,33 @@
+Business Source License 1.1
+
+Parameters
+
+Licensor:             Forge (forgeweb.ai)
+Licensed Work:        Forge platform source code, excluding the
+                      `opencode/` subtree (see NOTICE).
+                      The Licensed Work is (c) 2026 Forge.
+
+Additional Use Grant: You may make production use of the Licensed Work
+                      to run, host, or deploy your own applications and
+                      to provide internal services to your organization,
+                      provided that you do not offer the Licensed Work
+                      to third parties as a hosted or managed service
+                      whose value proposition is substantially the same
+                      as Forge's hosted product (an "AI App-Generation
+                      Service"). For clarity: building apps with Forge
+                      and shipping those apps is permitted; reselling
+                      Forge itself as a service is not.
+
+Change Date:          Four years from the date the Licensed Work is
+                      published.
+
+Change License:       Apache License, Version 2.0
+
+For the full canonical text of the Business Source License 1.1, see:
+https://mariadb.com/bsl11
+
+Notice
+
+The Business Source License (this document, or the "License") is not an
+Open Source license. However, the Licensed Work will eventually be made
+available under an Open Source license, as stated in this License.
