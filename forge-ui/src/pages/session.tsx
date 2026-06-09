@@ -47,6 +47,9 @@ import { useSync } from "@/context/sync"
 import { useTerminal } from "@/context/terminal"
 import { type FollowupDraft, sendFollowupDraft } from "@/components/prompt-input/submit"
 import { createSessionComposerState, SessionComposerRegion } from "@/pages/session/composer"
+import { takePendingAttachments } from "@/pages/session/handoff"
+import { uuid } from "@/utils/uuid"
+import type { ImageAttachmentPart } from "@/context/prompt"
 import {
   createOpenReviewFile,
   createSessionTabs,
@@ -1763,6 +1766,29 @@ export default function Page() {
 
   onMount(() => {
     makeEventListener(document, "keydown", handleKeyDown)
+
+    // Home → session image handoff. The home composer stores attached images
+    // in an in-memory map (see pages/session/handoff.ts) keyed by the
+    // project's workspace_path because raw File objects can't be encoded in
+    // the URL. Here on session mount — and ONLY when the navigation actually
+    // originated from home — we drain the parked entries and append them as
+    // ImageAttachmentPart parts to the composer's prompt state. The take
+    // helper also clears the entry so a refresh doesn't re-inject stale
+    // images. Without this wiring images attached on home silently vanish
+    // when the session mounts.
+    if (searchParams.from === "home" && sdk.directory) {
+      const pending = takePendingAttachments(sdk.directory)
+      if (pending.length > 0) {
+        const parts: ImageAttachmentPart[] = pending.map((p) => ({
+          type: "image",
+          id: uuid(),
+          filename: p.name,
+          mime: p.mime,
+          dataUrl: p.dataUrl,
+        }))
+        prompt.set([...prompt.current(), ...parts], prompt.cursor())
+      }
+    }
   })
 
   onCleanup(() => {
