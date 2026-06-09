@@ -61,12 +61,33 @@ class Settings(BaseSettings):
 
     # ── Workspace paths ───────────────────────────────────────────────────────
     forge_data_root: str = "/forge-data"
+    # Host-side path of forge_data_root, used ONLY when forge-server runs
+    # inside Docker and asks the daemon to bind-mount the workspace into a
+    # child container. The daemon resolves bind sources against the HOST
+    # filesystem, not forge-server's container, so a raw `/forge-data` (an
+    # in-container path) makes the mount silently fail on macOS Docker
+    # Desktop and the child container stays stuck in `Created`. dev.sh and
+    # any non-Docker run can leave this empty — the helper falls back to
+    # forge_data_root, which IS the host path in those cases.
+    forge_data_root_host: str = ""
 
     # ── Sleep worker ──────────────────────────────────────────────────────────
     # How often the sleep worker wakes (seconds)
     sleep_check_interval: int = 60
     # Containers idle longer than this are stopped (seconds)
     idle_ttl: int = 600    # 10 minutes
+
+    # ── Project container resource limits ─────────────────────────────────────
+    # Memory ceiling per project container. 1 GB is not enough — a fresh
+    # Next.js pnpm install regularly peaks above that during the resolve pass
+    # and gets OOM-killed mid-bootstrap, leaving the FE staring at "(no
+    # output yet)". 2 GB is the smallest value that completes reliably across
+    # the templates Forge ships. Operators on tight hosts can lower it via
+    # FORGE_CONTAINER_MEM_LIMIT; the format is docker-py's mem_limit string
+    # (e.g. "2g", "1536m").
+    container_mem_limit: str = "2g"
+    # CPU ceiling per project container in nano-CPUs (1e9 == 1 vCPU).
+    container_nano_cpus: int = 1_000_000_000
 
     # ── CORS ──────────────────────────────────────────────────────────────────
     cors_origins: list[str] = ["*"]

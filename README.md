@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/forge-logo.png" alt="Forge logo" width="160">
+</p>
+
 # Forge — open-source, self-hosted alternative to Lovable & v0.dev
 
 **Build webapps by chatting with an AI agent. Self-host it. Bring your own keys (or don't).**

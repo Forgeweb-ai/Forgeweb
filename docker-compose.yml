@@ -90,6 +90,11 @@ services:
       # .gitignore ignores opencode-generated files in this folder so they
       # don't pollute `git status`.
       - ./forge-opencode-config:/root/.config/opencode
+      # Opencode's sqlite session/state DB lives here. Without a volume,
+      # every container recreate (compose down/up, force-recreate) wipes
+      # every session and the FE shows "Session not found" on the next
+      # prompt. Named volume persists across the container lifecycle.
+      - opencode-data:/root/.local/share/opencode
     networks:
       - forge-net
     environment:
@@ -147,6 +152,14 @@ services:
       - DATABASE_URL=postgresql+asyncpg://forge:${POSTGRES_PASSWORD:-forgedev}@postgres:5432/forge
       - OPENCODE_URL=http://opencode:7777
       - FORGE_DATA_ROOT=/forge-data
+      # HOST path of forge-data — used ONLY when forge-server tells the
+      # docker daemon to bind-mount the workspace into a project container.
+      # The daemon resolves bind sources on the host FS, not inside
+      # forge-server's container, so passing /forge-data (the in-container
+      # path) makes the mount fail on macOS Docker Desktop and the project
+      # container stays stuck in Created. ${PWD} expands at compose-up time
+      # to the directory where `docker compose up` was run.
+      - FORGE_DATA_ROOT_HOST=${FORGE_DATA_ROOT_HOST:-${PWD}/forge-data}
       # Traefik routes *.${PREVIEW_DOMAIN} to project containers via Docker labels.
       # Local: preview.lvh.me (wildcard-resolves to 127.0.0.1, no DNS setup).
       # Prod:  preview.forge.com (real wildcard DNS).
@@ -267,3 +280,7 @@ volumes:
   postgres-data:
   redis-data:
   traefik-certs:
+  # Opencode's sqlite DB (sessions, instance state). Survives
+  # docker compose down/up so the FE doesn't lose its active session
+  # every restart.
+  opencode-data:

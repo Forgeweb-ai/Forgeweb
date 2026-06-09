@@ -296,8 +296,28 @@ def _env_vars(extra: dict[str, str] | None = None) -> list[str]:
 
 
 def _workspace_path(project_id: str, user_id: str) -> str:
+    """Workspace path as seen by FORGE-SERVER's own filesystem (mkdir, reads,
+    writes). When forge-server runs in Docker compose this is the in-container
+    path; in dev.sh / native runs it's already the host path."""
     return str(
         Path(settings.forge_data_root)
+        / "users" / user_id
+        / "projects" / project_id
+        / "workspace"
+    )
+
+
+def _workspace_path_host(project_id: str, user_id: str) -> str:
+    """Workspace path as the HOST docker daemon sees it. Use this when
+    constructing bind-mount sources for project containers — the daemon
+    resolves bind sources on the host FS, not inside forge-server's container.
+
+    Falls back to forge_data_root when forge_data_root_host is unset, which
+    covers every non-Docker run (dev.sh, CLI, tests). The two paths only need
+    to differ when forge-server itself is containerised."""
+    host_root = settings.forge_data_root_host or settings.forge_data_root
+    return str(
+        Path(host_root)
         / "users" / user_id
         / "projects" / project_id
         / "workspace"
@@ -336,7 +356,8 @@ def _sync_create_container(
     """
     client    = _get_docker()
     name      = _container_name(project_id)
-    ws_path   = _workspace_path(project_id, user_id)
+    ws_path        = _workspace_path(project_id, user_id)       # forge-server's view (mkdir, file ops)
+    ws_mount_src   = _workspace_path_host(project_id, user_id)  # docker daemon's view (bind source)
     nm_vol    = _nm_volume_name(project_id)
     next_vol  = _next_volume_name(project_id)
     labels    = _traefik_labels(project_id)
@@ -390,8 +411,12 @@ def _sync_create_container(
             environment = env,
             network = settings.docker_network,
             volumes = {
-                # workspace files
-                ws_path: {"bind": "/app", "mode": "rw"},
+                # Workspace files. Use the HOST path (ws_mount_src) here, not
+                # forge-server's in-container ws_path — the docker daemon
+                # resolves bind sources on the host FS. In dev.sh both paths
+                # are identical (settings.forge_data_root_host falls back to
+                # forge_data_root); in docker compose they differ.
+                ws_mount_src: {"bind": "/app", "mode": "rw"},
                 # node_modules cache (persists across stop/start, never bind-mounted)
                 nm_vol:  {"bind": "/app/node_modules", "mode": "rw"},
                 # .next cache (prevents host macOS vs container Alpine compiler conflict)
@@ -402,9 +427,11 @@ def _sync_create_container(
             },
             working_dir = "/app",
             ports = port_bindings,
-            # Resource limits — prevent runaway containers
-            mem_limit    = "1g",
-            nano_cpus    = 1_000_000_000,   # 1 CPU
+            # Resource limits — prevent runaway containers. Tunable so
+            # operators on small VPSes can lower it; default is the smallest
+            # value that survives a fresh Next.js pnpm install reliably.
+            mem_limit    = settings.container_mem_limit,
+            nano_cpus    = settings.container_nano_cpus,
             restart_policy = {"Name": "no"},
         )
     except docker.errors.APIError as exc:

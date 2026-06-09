@@ -175,11 +175,11 @@ const nextConfig: NextConfig = {
   // and /api/* requests hang in dev. Add any other native deps you use.
   // serverExternalPackages: ["pg"] — only needed if pg is bundled by Next.
   // Drizzle's node-postgres adapter resolves cleanly without it. Empty for now.
-  // Turbopack config (Next 15+): TOP-LEVEL `turbopack` key. The old
-  // `experimental.turbo` location is deprecated and produces a parse error
-  // under recent Turbopack versions. The `loaders` array must contain
-  // EITHER strings OR full `{ loader, options }` objects with BOTH fields;
-  // a bare `{ loader }` without `options` fails the RuleConfigItemOrShortcut
+  // Turbopack config (Next 15+): TOP-LEVEL \`turbopack\` key. The old
+  // \`experimental.turbo\` location is deprecated and produces a parse error
+  // under recent Turbopack versions. The \`loaders\` array must contain
+  // EITHER strings OR full \`{ loader, options }\` objects with BOTH fields;
+  // a bare \`{ loader }\` without \`options\` fails the RuleConfigItemOrShortcut
   // schema (which is the exact error users were hitting). We use the string
   // form because the loader takes no options.
   turbopack: {
