@@ -31,6 +31,7 @@ Healthcheck:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -72,6 +73,21 @@ LOG_FILE           = LOG_DIR / "forge-llm-proxy.log"
 CALLS_DIR          = LOG_DIR / "calls"
 LOG_BODY_MAX       = int(os.environ.get("FORGE_LLM_PROXY_BODY_MAX", "200000"))  # cap per-field body size in stdout
 PORT               = int(os.environ.get("PORT", "7799"))
+
+# ── Stream watchdog ──────────────────────────────────────────────────────────
+# Idle-token timeout for streaming responses. If the upstream model goes
+# silent for this many seconds without delivering a single byte, we abort
+# the connection, emit a vendor-agnostic terminator, and record the turn
+# as stalled. Without this, a stalled provider keepalive freezes opencode
+# on "Thinking…" until something else kills the TCP socket — at 100k
+# containers this is a guaranteed daily outage class.
+#
+# 45s is conservative: real model turns can have multi-second gaps between
+# tool-result and final-message chunks; 45s comfortably exceeds the longest
+# legitimate gap observed in production while still bounding the user-
+# visible hang at well under one minute. Tunable via env without code
+# change so operators can dial it down once we have telemetry.
+_IDLE_TOKEN_TIMEOUT_S = float(os.environ.get("FORGE_LLM_PROXY_IDLE_TIMEOUT", "45"))
 
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 CALLS_DIR.mkdir(parents=True, exist_ok=True)
@@ -625,15 +641,69 @@ async def _handle_vendor_call(
             collected: list[str] = []
 
             async def stream_and_log() -> AsyncIterator[bytes]:
-                async for chunk in r.aiter_raw():
+                # Watchdog: any single gap > _IDLE_TOKEN_TIMEOUT_S between
+                # upstream chunks → treat the turn as stalled, close upstream,
+                # emit a vendor-agnostic terminator so the SDK parser unblocks,
+                # and log the kill. Resets on every byte received, so a slow-
+                # but-alive stream continues normally. See module-level note
+                # on _IDLE_TOKEN_TIMEOUT_S for the cost/latency tradeoff.
+                stalled = False
+                aiter   = r.aiter_raw().__aiter__()
+                while True:
+                    try:
+                        chunk = await asyncio.wait_for(
+                            aiter.__anext__(), timeout=_IDLE_TOKEN_TIMEOUT_S
+                        )
+                    except asyncio.TimeoutError:
+                        stalled = True
+                        break
+                    except StopAsyncIteration:
+                        break
                     collected.append(chunk.decode("utf-8", errors="replace"))
                     yield chunk
-                await r.aclose()
+
+                # Best-effort upstream close; never let a close error mask
+                # the real outcome we're about to log.
+                try:
+                    await r.aclose()
+                except Exception:
+                    pass
+
                 elapsed_ms = int((time.monotonic() - t0) * 1000)
-                full_text = "".join(collected)
-                event_lines = full_text.split("\n")
+                full_text  = "".join(collected)
+
+                if stalled:
+                    # Emit a vendor-agnostic SSE terminator. OpenAI-compatible
+                    # clients (Moonshot) require `data: [DONE]` to consider
+                    # the stream finished; Anthropic/Google clients tolerate
+                    # a foreign terminator and treat it as EOF. Without this
+                    # the client may sit on a half-open stream waiting for
+                    # its own internal timeout — defeating the whole point
+                    # of the watchdog. Clients also have read timeouts that
+                    # will fire eventually; this is belt-and-braces.
+                    yield b"data: [DONE]\n\n"
+                    log.warning(
+                        f"[{call_id}] ⚠ stalled — no chunk in {_IDLE_TOKEN_TIMEOUT_S:.0f}s, "
+                        f"aborted upstream after {elapsed_ms}ms, {len(full_text)}b buffered"
+                    )
+                    resp_summary = {
+                        "text_blocks": [],
+                        "tool_uses":   [],
+                        "stop_reason": "stalled",
+                        "usage":       None,
+                    }
+                    # 504 in the persisted record signals "we never got a
+                    # complete response" — distinct from a real upstream 5xx,
+                    # which would carry r.status_code from a non-streaming
+                    # failure. Cost stays None (we don't know the usage).
+                    _persist_record(call_id, elapsed_ms, True, vendor, model, None,
+                                    request.method, log_path_label, headers_in, body_json,
+                                    504, dict(r.headers), resp_summary, full_text, None)
+                    return
+
+                event_lines  = full_text.split("\n")
                 resp_summary = parse_sse(event_lines)
-                cost  = _compute_cost(model, resp_summary.get("usage"))
+                cost         = _compute_cost(model, resp_summary.get("usage"))
                 log.info(
                     f"[{call_id}] ← {r.status_code} {_summarise_response_one_line(resp_summary, cost)}  "
                     f"({elapsed_ms}ms, {len(full_text)}b)"

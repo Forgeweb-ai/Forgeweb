@@ -43,13 +43,18 @@ services:
       retries: 5
 
   opencode:
-    image: node:20-alpine
+    build:
+      context: ./opencode
+      dockerfile: Dockerfile.forge
     container_name: forge-opencode
     restart: unless-stopped
     working_dir: /opencode
-    # Install opencode + python3 (ui-ux-pro-max skill's reasoning engine needs
-    # python3 to run scripts/search.py for the design-system generator).
-    command: sh -c "apk add --no-cache python3 py3-pip && npm install -g opencode-ai@latest && opencode serve --port 7777 --hostname 0.0.0.0"
+    # Run the vendored fork from source under bun. The npm package
+    # opencode-ai@latest does NOT include the Forge Phase 2 patches
+    # (Auth.ForgeMode + forge-auth middleware + per-request key suppression);
+    # using it would silently fall back to the shared auth.json / env-var
+    # behaviour and re-leak platform keys to every Forge user.
+    command: ["bun", "run", "--conditions=browser", "packages/opencode/src/index.ts", "serve", "--port", "7777", "--hostname", "0.0.0.0"]
     volumes:
       # Use ${FORGE_DATA_ROOT:-./forge-data}. On macOS the bare `/forge-data`
       # path is not in Docker Desktop's shared-paths list, so the mount is
@@ -70,16 +75,20 @@ services:
     networks:
       - forge-net
     environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      # Moonshot + Google keys are referenced by opencode.json via {env:...}.
-      # Without these the @ai-sdk/google and @ai-sdk/openai-compatible packages
-      # silently get an empty apiKey and 401 on every call.
-      - MOONSHOT_API_KEY=${MOONSHOT_API_KEY:-}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
-      # Route Anthropic traffic through the logging proxy. opencode also has
-      # this baked into its global config (providers.anthropic.options.baseURL)
-      # but the env var is a belt-and-braces fallback the SDK respects.
+      # NO platform LLM keys here. Forge is BYOK at the user layer:
+      # provider keys live in user_provider_keys (Fernet-encrypted) and are
+      # injected per-request by the resolver (forge-server opencode_proxy +
+      # opencode's ForgeMode middleware). Default model is opencode zen's
+      # free DeepSeek V4 Flash, which needs no key at all. Wiring env keys
+      # here would re-introduce the platform-key leak path we removed.
+      #
+      # opencode.json's {env:MOONSHOT_API_KEY} / {env:GOOGLE_API_KEY}
+      # placeholders resolve to empty strings — the resolver overrides
+      # them on every authenticated user request.
+      #
+      # Route Anthropic traffic through the logging proxy so every request
+      # is auditable in forge-llm-proxy-logs/, regardless of which user
+      # owns the key being injected.
       - ANTHROPIC_BASE_URL=http://forge-llm-proxy:7799
     depends_on:
       - forge-llm-proxy
@@ -155,6 +164,12 @@ services:
       - FORGE_LLM_PROXY_LOG_DIR=/logs
       - FORGE_QA_PATH=/forge-qa
       - PORT=7799
+      # Idle-token watchdog for streaming responses. If upstream goes silent
+      # for this many seconds, the proxy aborts the stream and emits a
+      # vendor-agnostic terminator so opencode unblocks. Without this, a
+      # stalled provider freezes the UI on "Thinking…" until something kills
+      # the TCP socket. Tune down once we have telemetry on legitimate gaps.
+      - FORGE_LLM_PROXY_IDLE_TIMEOUT=${FORGE_LLM_PROXY_IDLE_TIMEOUT:-45}
     volumes:
       # Logs visible on the host at ./forge-llm-proxy-logs/
       - ./forge-llm-proxy-logs:/logs
@@ -167,7 +182,7 @@ services:
 
   forge-fe:
     build:
-      context: ./forge-ui-new
+      context: ./forge-ui
       dockerfile: Dockerfile
     container_name: forge-fe
     restart: unless-stopped
