@@ -142,6 +142,22 @@ def _sign_user_id(user_id: str) -> str:
     return hmac.new(key, msg, sha256).hexdigest()
 
 
+def _sign_project_id(project_id: str) -> str:
+    """Project-scoped HMAC. Mirror of internal_routes._sign_project — kept
+    independent for the same reason as _sign_user_id above.
+
+    Used to issue tokens that authorise an opencode-side tool (e.g. the
+    verify subagent's check_build call) to read /api/internal/projects/{pid}/*
+    without ever seeing forge_internal_secret. The "project:" prefix domain-
+    separates these tokens from user-scoped ones, so a captured user token
+    can never be replayed against a project endpoint.
+    """
+    bucket = int(time.time()) // 60
+    msg    = f"project:{project_id}:{bucket}".encode("utf-8")
+    key    = settings.forge_internal_secret.encode("utf-8")
+    return hmac.new(key, msg, sha256).hexdigest()
+
+
 async def _resolve_forge_auth(user: User, db: AsyncSession) -> str:
     """
     Always returns an encoded `X-Forge-Auth` value, even when the user has no
@@ -180,6 +196,20 @@ async def _proxy(
     user_id_str = str(user.id)
     fwd_headers["x-forge-user-id"]        = user_id_str
     fwd_headers["x-forge-internal-token"] = _sign_user_id(user_id_str)
+
+    # Per-project context for tools that need to scope work to the active
+    # project (verify subagent's check_build path). The FE sends
+    # X-Forge-Project-Id on /opencode/* requests once it knows the user is
+    # in a project session; the proxy passes it verbatim, plus a separately
+    # signed project-scoped HMAC the agent can use to hit HMAC-protected
+    # internal routes WITHOUT ever seeing forge_internal_secret directly.
+    # On home/non-project requests neither header is present and the agent
+    # sees no FORGE_PROJECT_ID — the verify subagent treats that as
+    # "not bound to a project" and stays silent rather than flailing.
+    project_id_str = request.headers.get("x-forge-project-id")
+    if project_id_str:
+        fwd_headers["x-forge-project-id"]    = project_id_str
+        fwd_headers["x-forge-project-token"] = _sign_project_id(project_id_str)
 
     # Force the upstream to send uncompressed. Two reasons:
     #   1. opencode's compressionLayer gzips by default. Gzip frames buffer

@@ -360,6 +360,40 @@ async def snapshot_project_internal(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Project runtime errors (called by the verify subagent)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Same trust model as snapshot above: the verify subagent runs inside opencode
+# without a user JWT and authenticates via project-scoped HMAC. We mirror the
+# existing user-auth GET /api/projects/{pid}/runtime-errors (which gates on
+# `current_user_optional`) — same store, same shape, just different auth.
+
+@router.get("/projects/{project_id}/runtime-errors")
+async def runtime_errors_internal(
+    project_id: str,
+    since:      float | None  = None,
+    _auth:      str           = Depends(verify_internal_project_token),
+    db:         AsyncSession  = Depends(get_db),
+):
+    """Read the project's runtime-errors ring on behalf of the verify
+    subagent. HMAC-gated — token is the project-scoped variant minted by
+    forge-server's opencode_proxy and exposed to the agent shell as
+    FORGE_PROJECT_TOKEN."""
+    # Import locally so the heavy api module is only loaded when used.
+    from forge_server.runner.runtime_errors_store import list_errors as store_list
+
+    # Validate the project exists (defence-in-depth — HMAC verification
+    # already confirms the project_id, but a stale token after a delete
+    # could otherwise return [] silently and look like "no errors").
+    proj = await db.scalar(select(Project).where(Project.id == project_id))
+    if proj is None:
+        raise HTTPException(status_code=404, detail="project not found")
+
+    errors = await store_list(project_id, since=since)
+    return {"project_id": project_id, "errors": errors}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Image generation (called by opencode's request_images tool)
 # ─────────────────────────────────────────────────────────────────────────────
 #

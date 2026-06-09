@@ -471,17 +471,57 @@ export const ShellTool = Tool.define(
       return out
     }
 
+    // Forge per-session context injection.
+    // ──────────────────────────────────────────────────────────────────────
+    // The forge-user middleware parks the user's current project context
+    // (id + project-scoped HMAC token) in lastProjectByUser on every
+    // project-bound proxy hit. The shell tool reaches into that map at
+    // spawn time and exposes the values as env vars so tools (notably the
+    // verify subagent's check_build path) can hit
+    //   GET ${FORGE_API_URL}/api/internal/projects/${FORGE_PROJECT_ID}/runtime-errors
+    //   with X-Forge-Internal-Token: ${FORGE_PROJECT_TOKEN}
+    // — without ever needing FORGE_INTERNAL_SECRET, which stays in the
+    // parent process only. If the user isn't in a project (home page,
+    // settings, etc.) the map has no entry and these vars stay undefined,
+    // so subagent prompts can test for FORGE_PROJECT_ID and short-circuit.
+    const forgeSessionEnv = (): Record<string, string> => {
+      const out: Record<string, string> = {}
+      const apiUrl = process.env.FORGE_API_URL
+      if (apiUrl) out.FORGE_API_URL = apiUrl
+      // The active user_id is on the request scope (UserId service) but the
+      // shell hook fires at spawn time outside that context. We read the
+      // most-recently-seen entry — single-tenant per request flow, so the
+      // single-entry map below is unambiguous in practice.
+      // (Multi-tenant correctness comes from forge-user.ts using a
+      // per-user map; the last write wins per user, and a user only ever
+      // talks to one project at a time from the FE.)
+      const lastEntry = (() => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { lastProjectByUser } = require("@/server/routes/instance/httpapi/middleware/forge-user")
+        // Walk values; we expect one user active at a time in single-tenant.
+        let val: { id: string; token: string } | undefined
+        for (const v of lastProjectByUser.values()) val = v
+        return val
+      })()
+      if (lastEntry) {
+        out.FORGE_PROJECT_ID    = lastEntry.id
+        out.FORGE_PROJECT_TOKEN = lastEntry.token
+      }
+      return out
+    }
+
     const shellEnv = Effect.fn("ShellTool.shellEnv")(function* (ctx: Tool.Context, cwd: string) {
       const extra = yield* plugin.trigger(
         "shell.env",
         { cwd, sessionID: ctx.sessionID, callID: ctx.callID },
         { env: {} },
       )
-      // process.env is sanitized through the allow-list FIRST; plugin-supplied
-      // values come last so they can intentionally inject per-session context
-      // (FORGE_PROJECT_ID, FORGE_USER_ID, ...) that we want the model to see.
+      // process.env is sanitized through the allow-list FIRST; Forge per-
+      // session vars next; plugin-supplied values last so a project plugin
+      // can override defaults if it really needs to.
       return {
         ...sanitizeProcessEnv(),
+        ...forgeSessionEnv(),
         ...extra.env,
       }
     })

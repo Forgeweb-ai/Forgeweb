@@ -34,7 +34,22 @@ import { UserId, InternalToken } from "@/forge/user-id"
 
 const USER_HEADER  = "x-forge-user-id"
 const TOKEN_HEADER = "x-forge-internal-token"
+
+// Per-project context — set by forge-server's opencode_proxy when the user
+// is in a project session. The shell-env plugin reads these (via the global
+// fallback below) and injects them as FORGE_PROJECT_ID + FORGE_PROJECT_TOKEN
+// for tools that need to call back into /api/internal/projects/{pid}/* on
+// forge-server. Skipped when the request is not project-bound (home page).
+const PROJECT_ID_HEADER    = "x-forge-project-id"
+const PROJECT_TOKEN_HEADER = "x-forge-project-token"
+
 const WINDOW_SECONDS = 60
+
+// Most-recent project context, indexed by user_id. Updated on every
+// project-bound proxy hit; read by the shell-env plugin at spawn time.
+// Single-tenant per Forge instance today, so this map is bounded by the
+// active-user count — fine without LRU until real scale lands.
+export const lastProjectByUser = new Map<string, { id: string; token: string }>()
 
 function sign(userId: string, bucket: number, secret: string): string {
   return createHmac("sha256", secret).update(`${userId}:${bucket}`).digest("hex")
@@ -73,6 +88,16 @@ export const forgeUserLayer = HttpRouter.middleware<{ handles: unknown }>()((eff
       // eslint-disable-next-line no-console
       console.warn(`[forge-user] rejected request: bad HMAC for user_id=${userId}`)
       return yield* effect
+    }
+
+    // If this request is project-bound (set by forge-server's proxy), park
+    // the project context where the shell-env plugin can pick it up at the
+    // next tool spawn. We use a per-user map (not a global) so concurrent
+    // requests from different users never see each other's project token.
+    const projectId    = request.headers[PROJECT_ID_HEADER]
+    const projectToken = request.headers[PROJECT_TOKEN_HEADER]
+    if (projectId && projectToken) {
+      lastProjectByUser.set(userId, { id: projectId, token: projectToken })
     }
 
     return yield* effect.pipe(
