@@ -99,6 +99,13 @@ RUN sed -i 's|location / {|location / { try_files $uri $uri/ /index.html;|' /etc
 
 COPY --from=builder /build/forge-ui/dist /usr/share/nginx/html
 
+# Source files copied from the host may carry restrictive modes (e.g. PNGs in
+# public/ created on a macOS shell where umask 077 lands them at 0600). nginx
+# runs as a non-root user inside the container and silently 403s on
+# owner-only-readable files. Force everything in the served tree to be world-
+# readable; directories also need +x to be traversable.
+RUN chmod -R a+rX /usr/share/nginx/html
+
 EXPOSE 3000
 
 # Run nginx in foreground so docker keeps the container alive.
