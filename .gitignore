@@ -98,3 +98,8 @@ forge-server/*.png
 /forge-opencode-config/*
 !/forge-opencode-config/AGENTS.md
 !/forge-opencode-config/opencode.json
+
+# Local-only engineering guidelines. Useful for the maintainer's AI agents
+# but not part of the public OSS contract — CONTRIBUTING.md is the canonical
+# contributor doc.
+CLAUDE.md
