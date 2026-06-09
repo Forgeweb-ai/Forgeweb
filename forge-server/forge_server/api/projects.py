@@ -235,6 +235,15 @@ async def create_project(
     # see _scaffold_workspace docstring.
     _scaffold_workspace(ws, project.id, body.name, body.description)
 
+    # Link the user's standing preferences into the project so opencode picks
+    # them up from the very first turn. Symlink lives at the project root
+    # (one level above /workspace) — see api/preferences_routes.py for the
+    # path convention. No-op if the user has no preferences yet; the link
+    # target just doesn't resolve and opencode's existsSafe() falls through.
+    # Import locally to avoid a top-level circular import with preferences_routes.
+    from forge_server.api.preferences_routes import _ensure_project_symlink
+    _ensure_project_symlink(user.id, project.id)
+
     await db.commit()
     await db.refresh(project)
     return _project_out(project, None)
@@ -649,8 +658,14 @@ _ZIP_EXCLUDE_DIRS = {
     ".DS_Store",
 }
 
-# Individual filenames excluded at any depth
-_ZIP_EXCLUDE_FILES = {"AGENTS.md", "forge.json", "opencode.json"}
+# Individual filenames excluded at any depth.
+# `.env` and `.env.local` carry secrets (DB role passwords, Anthropic keys
+# the user may have pasted, Supabase anon/service-role keys) AND point at
+# Forge-internal hosts (127.0.0.1:54322 in local-self-host mode) that won't
+# resolve on the user's deploy target. Always exclude — `.env.example` is
+# included if present so the recipient sees the schema. Critical for Phase B:
+# generated apps now have a real DATABASE_URL with a role password.
+_ZIP_EXCLUDE_FILES = {"AGENTS.md", "forge.json", "opencode.json", ".env", ".env.local"}
 
 def _should_exclude(rel: Path) -> bool:
     """Return True if any path segment or filename should be kept out of the zip."""

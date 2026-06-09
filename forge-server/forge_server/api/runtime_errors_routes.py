@@ -36,7 +36,9 @@ Auth model:
 """
 from __future__ import annotations
 
+import base64
 import logging
+import re
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -103,7 +105,34 @@ class ClearAck(BaseModel):
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
+# The FE identifies projects in some routes by the SolidJS `dir` route param,
+# which is the base64-encoded workspace directory path (opencode upstream
+# identifies projects by directory, Forge by UUID — this is the seam). The
+# decoded path always looks like:
+#   /…/forge-data/users/<USER_UUID>/projects/<PROJECT_UUID>/workspace
+# so we can pull the project UUID out of it without a schema change or an
+# extra DB lookup. Anything that already looks like a UUID passes through
+# unchanged.
+_UUID_RE       = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
+_PROJ_PATH_RE  = re.compile(r"/projects/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:/|$)", re.I)
+
+
+def _normalize_project_id(raw: str) -> str:
+    """Accept a UUID, or a base64-encoded workspace path that embeds one."""
+    if _UUID_RE.match(raw):
+        return raw
+    try:
+        decoded = base64.b64decode(raw, validate=False).decode("utf-8", errors="ignore")
+    except Exception:
+        # Fall through — the UUID lookup will produce the original 422/500
+        # surface, which is still better than masking with a 404.
+        return raw
+    match = _PROJ_PATH_RE.search(decoded)
+    return match.group(1) if match else raw
+
+
 async def _project_exists(project_id: str, db: AsyncSession) -> Project:
+    project_id = _normalize_project_id(project_id)
     p = (await db.execute(select(Project).where(Project.id == project_id))).scalar_one_or_none()
     if p is None:
         raise HTTPException(404, "Project not found")
@@ -131,6 +160,9 @@ async def ingest(
     Accept one error. Open to unauthenticated POSTs IF the Origin header
     matches this project's preview URL — anything else requires the owner.
     """
+    # Normalize once so DB lookup, Origin check, and ring key all share the
+    # same canonical UUID even when the FE passed a base64 dir path.
+    project_id = _normalize_project_id(project_id)
     project = await _project_exists(project_id, db)
 
     if user is None or project.user_id != user.id:
@@ -151,6 +183,7 @@ async def list_runtime_errors(
     db:         AsyncSession = Depends(get_db),
 ):
     """Newest-first list. `since` (epoch seconds) returns only newer entries."""
+    project_id = _normalize_project_id(project_id)
     await _owned(project_id, user, db)
     items = await store_list(project_id, since_ts=since)
     return [RuntimeErrorOut(**i) for i in items]
@@ -163,6 +196,7 @@ async def clear_runtime_errors(
     db:         AsyncSession = Depends(get_db),
 ):
     """Drop everything for a project. Called by the agent after addressing."""
+    project_id = _normalize_project_id(project_id)
     await _owned(project_id, user, db)
     n = await store_clear(project_id)
     return ClearAck(cleared=n)

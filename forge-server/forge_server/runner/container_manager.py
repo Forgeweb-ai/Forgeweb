@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
@@ -29,6 +30,168 @@ from docker.models.containers import Container
 from forge_server.config import get_settings
 
 settings = get_settings()
+log      = logging.getLogger("forge.container_manager")
+
+# ── Runtime-error bridge template ────────────────────────────────────────────
+# The in-iframe bridge SHOULD be written by forge-bootstrap.sh inside the
+# project container, but bootstrap has proven unreliable in practice:
+#  - Runner images can be stale (container created before the bootstrap
+#    knew about the bridge at all).
+#  - `set -e` in earlier sections can kill the script before section 4.
+#  - A container that's only `docker start`-ed (warm start) without a
+#    restart skips the bootstrap CMD entirely on some Docker versions.
+# The result: a project where the FE preview iframe has no error bridge,
+# the runtime-errors queue stays empty, "Select" mode does nothing, and
+# the user reports "Forge isn't picking up errors" — which is the same
+# class of failure we've been chasing for weeks. Defense in depth: write
+# the bridge from THIS side too, where we have full control over success.
+#
+# Single source of truth: the bridge content is cached at module import,
+# read from forge_server/runner/templates/instrumentation_client_v4.ts.
+# The version marker on line 1 must match the regex below; updating the
+# template auto-rolls every project on the next ensure().
+_BRIDGE_TEMPLATE_PATH = Path(__file__).parent / "templates" / "instrumentation_client_v4.ts"
+_BRIDGE_MARKER_RE     = re.compile(r"^// forge:runtime-error-bridge:(v\d+)\s*$")
+_BRIDGE_CURRENT_TAG   = "v4"   # MUST match the first line of the template
+
+
+def _bridge_template_content() -> str | None:
+    """Load the bridge template once. Returns None if the file is missing
+    (deploy bug) — callers must treat that as a no-op, not a failure that
+    blocks container startup."""
+    try:
+        return _BRIDGE_TEMPLATE_PATH.read_text(encoding="utf-8")
+    except Exception as e:
+        log.warning("bridge template unreadable at %s: %s", _BRIDGE_TEMPLATE_PATH, e)
+        return None
+
+
+def _bridge_version_on_disk(workspace: Path) -> str | None:
+    """Returns the version tag of the existing instrumentation-client.ts in
+    `workspace`, or None if no Forge bridge is present.
+
+    Important: returns None for both "file missing" AND "file present but
+    not ours" (no marker comment on line 1). We never overwrite a file the
+    user authored themselves; we only refresh files we wrote.
+    """
+    p = workspace / "instrumentation-client.ts"
+    if not p.exists():
+        return None
+    try:
+        with p.open("r", encoding="utf-8") as f:
+            first = f.readline().rstrip("\n")
+    except Exception:
+        return None
+    m = _BRIDGE_MARKER_RE.match(first)
+    return m.group(1) if m else None
+
+
+def _is_next_project(workspace: Path) -> bool:
+    """Mirror forge-bootstrap.sh's `is_next_project`: a `"next":` key in
+    package.json. Cheap string check — we don't need to JSON-parse just
+    to gate the bridge write."""
+    pkg = workspace / "package.json"
+    if not pkg.exists():
+        return False
+    try:
+        return '"next"' in pkg.read_text(encoding="utf-8")
+    except Exception:
+        return False
+
+
+def backfill_bridges(data_root: Path | str = None) -> dict[str, int]:
+    """One-shot scan of every project workspace under `data_root` and
+    upgrade any missing/stale Forge bridge. Called at forge-server start
+    so existing projects pick up the current bridge without waiting for
+    the user to open them.
+
+    Scope: walks /forge-data/users/<user>/projects/<project>/workspace/
+    Bounded by O(projects) — no recursion into node_modules.
+    Idempotent + safe to call concurrently with ensure() because the
+    write itself is atomic (temp + rename).
+
+    Returns a small counter dict so app startup can log the impact:
+      {"written": N, "current": N, "user_owned": N, "not_next": N, "failed": N}
+    """
+    counts = {"written": 0, "current": 0, "user_owned": 0, "not_next": 0, "failed": 0, "template_missing": 0}
+    root = Path(data_root or settings.forge_data_root)
+    users_dir = root / "users"
+    if not users_dir.is_dir():
+        log.info("bridge backfill: %s missing — nothing to scan", users_dir)
+        return counts
+    for user_dir in users_dir.iterdir():
+        projects = user_dir / "projects"
+        if not projects.is_dir():
+            continue
+        for project_dir in projects.iterdir():
+            ws = project_dir / "workspace"
+            if not ws.is_dir():
+                continue
+            try:
+                result = ensure_bridge_in_workspace(ws)
+            except Exception as e:
+                log.warning("bridge backfill: ensure failed for %s: %s", ws, e)
+                counts["failed"] += 1
+                continue
+            # Status strings are namespaced "<bucket>:<detail>"
+            bucket = result.split(":", 1)[0]
+            if bucket == "written":
+                counts["written"] += 1
+            elif bucket in counts:
+                counts[bucket] += 1
+            elif bucket == "skipped":
+                detail = result.split(":", 1)[1]
+                if detail in counts:
+                    counts[detail] += 1
+    log.info("bridge backfill: %s", counts)
+    return counts
+
+
+def ensure_bridge_in_workspace(workspace: Path) -> str:
+    """Force the workspace to have the current Forge runtime-error bridge.
+
+    Behaviour, in priority order:
+      1. Not a Next.js project → no-op, return "skipped:not_next"
+      2. Existing file is non-Forge (no `forge:runtime-error-bridge:vN`
+         marker on line 1) → preserve, return "skipped:user_owned"
+      3. Existing file already at the current tag (_BRIDGE_CURRENT_TAG) →
+         no-op, return "skipped:current"
+      4. Missing OR older tag → atomically write the template, return
+         "written:<from_tag-or-none>->v4"
+
+    Idempotent and safe to call on every ensure(). Atomic write via temp
+    file + rename so we never leave a half-written bridge on a crash mid-
+    write. Returns a short status string for caller logging; never raises.
+    """
+    if not _is_next_project(workspace):
+        return "skipped:not_next"
+
+    content = _bridge_template_content()
+    if content is None:
+        return "skipped:template_missing"
+
+    current = _bridge_version_on_disk(workspace)
+    # If a file exists but has no Forge marker, the user owns it.
+    p = workspace / "instrumentation-client.ts"
+    if p.exists() and current is None:
+        return "skipped:user_owned"
+    if current == _BRIDGE_CURRENT_TAG:
+        return "skipped:current"
+
+    try:
+        tmp = workspace / ".instrumentation-client.ts.tmp"
+        tmp.write_text(content, encoding="utf-8")
+        tmp.replace(p)  # atomic on POSIX
+        log.info(
+            "bridge: wrote %s (was %s) at %s",
+            _BRIDGE_CURRENT_TAG, current or "none", p,
+        )
+        return f"written:{current or 'none'}->{_BRIDGE_CURRENT_TAG}"
+    except Exception as e:
+        # Never let a bridge-write failure block container startup.
+        log.warning("bridge: write failed at %s: %s", p, e)
+        return f"failed:{e}"
+
 
 # ── Docker client (sync, wrapped in executor for async callers) ───────────────
 _docker_client: docker.DockerClient | None = None
@@ -311,6 +474,47 @@ def _sync_has_current_traefik_labels(name: str, project_id: str) -> bool:
     return False
 
 
+def _sync_has_current_image(name: str) -> bool:
+    """
+    Return True if the container was built off the SAME forge-runner image
+    that's currently tagged `forge-runner:latest`. Containers built off an
+    older tag (e.g. before a bootstrap.sh / instrumentation-client.ts bump)
+    keep that older image's behaviour forever — the bootstrap CMD only runs
+    on container start, and even when it does it embeds the OLD bridge.
+    Without this check, `dev.sh restart` rebuilds the runner image but
+    every existing project container stays frozen on the stale build, and
+    bridge/bootstrap updates never reach the user's preview. That is the
+    actual reason "Forge still can't pick up errors after restart" — the
+    image change shipped, the containers never picked it up.
+
+    Returns True when:
+      - container's `Image` (resolved ID) matches `forge-runner:latest`'s ID
+    Returns False on any mismatch OR any failure to resolve (e.g. the
+    `forge-runner:latest` tag missing locally) — False forces a recreate,
+    which is the safer side to err on.
+    """
+    c = _sync_get_container(name)
+    if c is None:
+        return False
+    try:
+        client      = _get_docker()
+        # `c.image.id` is the resolved sha256 the container is actually
+        # running. `client.images.get(tag).id` is the sha256 the tag points
+        # at right now. Comparing IDs (not names) avoids the trap where a
+        # tag was moved to a new image but the container still references
+        # the tag string in its config.
+        current_id  = client.images.get(settings.container_image).id
+        running_id  = c.image.id if c.image else None
+        if not current_id or not running_id:
+            return False
+        return current_id == running_id
+    except Exception as e:
+        # Any docker failure → assume stale and force recreate. Cheaper
+        # than letting a real staleness slip through.
+        log.warning("image-staleness check failed for %s: %s", name, e)
+        return False
+
+
 def _sync_has_port_binding(name: str, container_port: int) -> bool:
     """
     Return True if the container has a host-port binding for `container_port`.
@@ -446,26 +650,41 @@ class ContainerManager:
         name   = _container_name(project_id)
         status = await _run(_sync_container_status, name)
 
+        # Bridge guarantee runs on EVERY ensure(), in every branch below.
+        # We materialise the v4 instrumentation-client.ts directly into the
+        # workspace from forge-server-side so the FE preview iframe always
+        # has the current bridge — even when the runner image is stale,
+        # bootstrap died mid-run, or the container was warm-started without
+        # invoking the bootstrap CMD. Idempotent + atomic; never blocks
+        # container start on failure. See ensure_bridge_in_workspace().
+        ws = _workspace_path(project_id, user_id)
+        bridge_status = await _run(ensure_bridge_in_workspace, Path(ws))
+        log.debug("bridge: %s for %s (%s)", bridge_status, project_id, ws)
+
         if status == "not_found":
             # Patch package.json before container creation
-            ws = _workspace_path(project_id, user_id)
             await _run(_sync_patch_package_json, ws)
             await _run(_sync_create_container, project_id, user_id, extra_env)
             await _run(_sync_start_container, name)
             action = "cold_start"
 
         elif status == "exited":
-            # Warm start — but first check Traefik labels are intact.
-            # Containers created before subdomain routing was enabled have no
-            # routing labels and would be unreachable via Traefik. Force-recreate.
-            if not await _run(_sync_has_current_traefik_labels, name, project_id):
+            # Warm start — but first check the container is still valid:
+            # (a) Traefik labels intact, AND (b) built off the CURRENT
+            # forge-runner image. If either is stale, recreate.
+            # (b) is what catches the "dev.sh restart rebuilt the image
+            # but the container kept the old bootstrap.sh" case — without
+            # it, bridge/bootstrap upgrades never reach existing projects.
+            stale_labels = not await _run(_sync_has_current_traefik_labels, name, project_id)
+            stale_image  = not await _run(_sync_has_current_image, name)
+            if stale_labels or stale_image:
+                reason = "labels" if stale_labels else "image"
                 print(
-                    f"[container_manager] {name}: exited but missing traefik labels "
+                    f"[container_manager] {name}: exited with stale {reason} "
                     f"— removing and recreating (cold start)",
                     flush=True,
                 )
                 await _run(_sync_remove_container, name)
-                ws = _workspace_path(project_id, user_id)
                 await _run(_sync_patch_package_json, ws)
                 await _run(_sync_create_container, project_id, user_id, extra_env)
                 await _run(_sync_start_container, name)
@@ -477,25 +696,29 @@ class ContainerManager:
         elif status in ("dead", "created"):
             # Container is in a bad/incomplete state — remove and recreate.
             await _run(_sync_remove_container, name)
-            ws = _workspace_path(project_id, user_id)
             await _run(_sync_patch_package_json, ws)
             await _run(_sync_create_container, project_id, user_id, extra_env)
             await _run(_sync_start_container, name)
             action = "cold_start"
 
         elif status == "running":
-            # Running — but verify Traefik labels are intact. A container that
-            # is already running without routing labels won't appear in Traefik's
-            # config; stop + recreate so the preview URL works.
-            if not await _run(_sync_has_current_traefik_labels, name, project_id):
+            # Running — verify (a) Traefik labels intact, AND (b) the
+            # container was built off the CURRENT forge-runner image.
+            # Stale image = stale bootstrap.sh = stale in-iframe bridge,
+            # which is the root cause of "Forge stopped picking up
+            # runtime errors after a deploy / dev.sh restart." Recreate
+            # transparently so the user never has to `docker rm` by hand.
+            stale_labels = not await _run(_sync_has_current_traefik_labels, name, project_id)
+            stale_image  = not await _run(_sync_has_current_image, name)
+            if stale_labels or stale_image:
+                reason = "labels" if stale_labels else "image"
                 print(
-                    f"[container_manager] {name}: running but missing traefik labels "
+                    f"[container_manager] {name}: running with stale {reason} "
                     f"— stopping and recreating (cold start)",
                     flush=True,
                 )
                 await _run(_sync_stop_container, name)
                 await _run(_sync_remove_container, name)
-                ws = _workspace_path(project_id, user_id)
                 await _run(_sync_patch_package_json, ws)
                 await _run(_sync_create_container, project_id, user_id, extra_env)
                 await _run(_sync_start_container, name)
@@ -517,8 +740,26 @@ class ContainerManager:
             from forge_server.runner.log_watcher import start_watcher
             await start_watcher(project_id, name)
         except Exception as e:
-            # Watcher is non-critical — container is up either way.
+            # Watcher is non-critical for the container — it's up either way.
+            # But it IS critical for the agent's "is this app broken?" loop:
+            # if start_watcher fails silently, the runtime-errors queue stays
+            # empty no matter what blows up inside, and Forge looks broken
+            # from the user's side. So we log loudly AND push a synthetic
+            # record into the runtime-errors store, so the FE banner and
+            # the agent's first-tool-call check both see "watcher failed —
+            # I can't see your container's errors right now."
             print(f"[container_manager] start_watcher failed: {e}", flush=True)
+            try:
+                from forge_server.runner.runtime_errors_store import record as _re_record
+                await _re_record(project_id, {
+                    "source":    "server",
+                    "signature": "watcher_attach_failed",
+                    "detail":    str(e)[:300],
+                    "line":      f"start_watcher({name}) raised: {type(e).__name__}",
+                    "container": name,
+                })
+            except Exception as inner:
+                print(f"[container_manager] runtime-errors record failed: {inner}", flush=True)
 
         return {
             "container_name": name,

@@ -128,10 +128,40 @@ fi
 # Without these, the preview looks broken in ways that take an hour to
 # diagnose (HMR ws fails, fetches hang, page renders but isn't clickable).
 # Forge owns this file — the agent should NOT customize it. See AGENTS.md.
+
+# ── 3a. ONE next.config file. .ts is canonical; delete .mjs/.js siblings.
+# Models freelance a second next.config.mjs alongside the .ts, then Next 15
+# picks whichever it picks and the user gets one of: Turbopack "duplicate
+# config" errors, the wrong allowedDevOrigins (preview iframe blocked), or
+# the source-stamp loader not running (visual edits broken). Bootstrap
+# resolves this deterministically: if .ts exists, .mjs / .js / .cjs siblings
+# are removed. Run BEFORE the patch step so we don't accidentally patch a
+# duplicate. If only .mjs/.js exists (no .ts), leave it — the patch step
+# below handles it as legacy.
+if [ -f next.config.ts ]; then
+  for sibling in next.config.mjs next.config.js next.config.cjs; do
+    if [ -f "$sibling" ]; then
+      echo "[forge-bootstrap] removing duplicate $sibling (canonical is next.config.ts)"
+      rm -f "$sibling" 2>/dev/null || true
+    fi
+  done
+fi
+
 if [ -f next.config.ts ] || [ -f next.config.js ] || [ -f next.config.mjs ]; then
   node - <<'EOF'
 const fs = require("fs")
 const CANONICAL = `import type { NextConfig } from "next"
+
+// Forge source-stamp loader (visual edits). Baked into the runner image at
+// /usr/local/lib/forge-source-stamp/loader.js — see runner-image/Dockerfile.
+// Stamps every JSX intrinsic with data-forge-source="path:line:col" in dev
+// only, so the Forge UI's Select tool can map clicks back to source.
+//
+// Wired in BOTH the webpack hook and experimental.turbo.rules because Next
+// 15's default \`next dev\` runs turbopack, not webpack — leaving turbo out
+// silently no-ops the feature for most users. Wiring both costs ~0 (turbo
+// rules are dev-only by definition; webpack hook gates on \`dev\`).
+const FORGE_SOURCE_STAMP = "/usr/local/lib/forge-source-stamp/loader.js"
 
 const nextConfig: NextConfig = {
   devIndicators: false,
@@ -143,7 +173,34 @@ const nextConfig: NextConfig = {
   ],
   // Native modules must be externalized or the route module fails to load
   // and /api/* requests hang in dev. Add any other native deps you use.
-  serverExternalPackages: ["better-sqlite3"],
+  // serverExternalPackages: ["pg"] — only needed if pg is bundled by Next.
+  // Drizzle's node-postgres adapter resolves cleanly without it. Empty for now.
+  // Turbopack config (Next 15+): TOP-LEVEL `turbopack` key. The old
+  // `experimental.turbo` location is deprecated and produces a parse error
+  // under recent Turbopack versions. The `loaders` array must contain
+  // EITHER strings OR full `{ loader, options }` objects with BOTH fields;
+  // a bare `{ loader }` without `options` fails the RuleConfigItemOrShortcut
+  // schema (which is the exact error users were hitting). We use the string
+  // form because the loader takes no options.
+  turbopack: {
+    rules: {
+      "*.{jsx,tsx}": {
+        loaders: [FORGE_SOURCE_STAMP],
+        as: "*.tsx",
+      },
+    },
+  },
+  webpack: (config: any, { dev }: { dev: boolean }) => {
+    if (dev) {
+      config.module.rules.push({
+        test: /\\.(jsx|tsx)$/,
+        exclude: /node_modules|\\.next|\\.forge/,
+        enforce: "pre",
+        use: [{ loader: FORGE_SOURCE_STAMP }],
+      })
+    }
+    return config
+  },
 }
 
 export default nextConfig
@@ -152,24 +209,39 @@ export default nextConfig
                : fs.existsSync("next.config.mjs") ? "next.config.mjs"
                : "next.config.js"
   const cur = fs.readFileSync(target, "utf8")
-  const hasOrigins = /allowedDevOrigins\s*:/.test(cur)
-  const hasExternal = /serverExternalPackages\s*:/.test(cur)
-  if (hasOrigins && hasExternal) process.exit(0)
+  const hasOrigins   = /allowedDevOrigins\s*:/.test(cur)
+  // Forge-mandatory: top-level `turbopack:` (Next 15+). Old
+  // `experimental.turbo` placement triggers a Turbopack parse error.
+  // Treat absence (or presence of old placement / broken loader form) as
+  // needs-patching so existing projects get migrated on next container boot.
+  const hasTurbopack    = /^\s*turbopack\s*:/m.test(cur)
+  const hasOldTurbo     = /experimental\s*:[\s\S]*?turbo\s*:/.test(cur)
+  const hasBrokenLoader = /loaders\s*:\s*\[\s*\{\s*loader\s*:\s*['"][^'"]+['"]\s*\}\s*\]/.test(cur)
+  // forge-source-stamp is mandatory too — without it, visual edits in the UI
+  // can't map clicks back to source. Treat its absence the same as a missing
+  // mandatory key so existing projects auto-upgrade on next container start.
+  const hasStamp = /forge-source-stamp/.test(cur)
+  if (hasOrigins && hasTurbopack && hasStamp && !hasOldTurbo && !hasBrokenLoader) process.exit(0)
   const customKeys = (cur.match(/^\s*\w+\s*:/gm) || []).filter(
-    k => !/^(devIndicators|allowedDevOrigins|serverExternalPackages)\s*:/.test(k.trim())
+    k => !/^(devIndicators|allowedDevOrigins|serverExternalPackages|turbopack|experimental|webpack)\s*:/.test(k.trim())
   )
   if (customKeys.length === 0 && target === "next.config.ts") {
     fs.writeFileSync(target, CANONICAL)
-    console.log("[forge-bootstrap] next.config.ts patched with mandatory keys")
+    console.log("[forge-bootstrap] next.config.ts patched with mandatory keys (incl. source-stamp)")
   } else {
     console.warn("[forge-bootstrap] WARN: next.config has custom keys; cannot")
-    console.warn("[forge-bootstrap] WARN: auto-patch. Add allowedDevOrigins and")
-    console.warn("[forge-bootstrap] WARN: serverExternalPackages manually (see AGENTS.md).")
+    console.warn("[forge-bootstrap] WARN: auto-patch. Add allowedDevOrigins,")
+    console.warn("[forge-bootstrap] WARN: serverExternalPackages, and the source-stamp")
+    console.warn("[forge-bootstrap] WARN: loader manually (see AGENTS.md).")
   }
 EOF
 elif is_next_project; then
 cat > next.config.ts <<'EOF'
 import type { NextConfig } from "next"
+
+// Forge source-stamp loader (visual edits) — baked at this absolute path in
+// the runner image. Dev-only; stripped from production builds.
+const FORGE_SOURCE_STAMP = "/usr/local/lib/forge-source-stamp/loader.js"
 
 const nextConfig: NextConfig = {
   devIndicators: false,
@@ -177,33 +249,69 @@ const nextConfig: NextConfig = {
     "*.preview.lvh.me",
     "*.preview.forge.com",
   ],
-  serverExternalPackages: ["better-sqlite3"],
+  // serverExternalPackages: ["pg"] — only needed if pg is bundled by Next.
+  // Drizzle's node-postgres adapter resolves cleanly without it. Empty for now.
+  //
+  // Turbopack config (Next 15+): TOP-LEVEL `turbopack` key (the old
+  // `experimental.turbo` placement triggers a parse error under recent
+  // Turbopack). The `loaders` array uses the string form because the
+  // source-stamp loader takes no options; the object form `{ loader }`
+  // without a paired `options` field fails the RuleConfigItemOrShortcut
+  // schema and breaks the dev server entirely.
+  turbopack: {
+    rules: {
+      "*.{jsx,tsx}": {
+        loaders: [FORGE_SOURCE_STAMP],
+        as: "*.tsx",
+      },
+    },
+  },
+  webpack: (config: any, { dev }: { dev: boolean }) => {
+    if (dev) {
+      config.module.rules.push({
+        test: /\.(jsx|tsx)$/,
+        exclude: /node_modules|\.next|\.forge/,
+        enforce: "pre",
+        use: [{ loader: FORGE_SOURCE_STAMP }],
+      })
+    }
+    return config
+  },
 }
 
 export default nextConfig
 EOF
-  echo "[forge-bootstrap] next.config.ts created with mandatory keys"
+  echo "[forge-bootstrap] next.config.ts created with mandatory keys (incl. source-stamp)"
 fi
 
 # ── 4. instrumentation-client.ts (always for Next projects) ──────────────────
 # Captures browser-side errors and postMessages them to window.parent. The
 # Forge UI's preview iframe parent listens and forwards to forge-server.
-# NOTE: marker bumped v1 → v2 to add the on-demand screenshot handler used by
-# the Forge UI "Fix this" button. Existing v1 files will be regenerated to v2
-# on next container start; the grep below matches BOTH so old projects upgrade.
+# NOTE: marker bumped v3 → v4 to add (a) signature inference so errors like
+# "Unexpected token '<' … is not valid JSON" get tagged json_parse_error
+# instead of the generic console_error, and (b) a MutationObserver that
+# scrapes the Next.js dev-overlay DOM — errors Next intercepts before our
+# console.error shim runs (Turbopack ConsoleError, React errorBoundary)
+# would otherwise never reach Forge. The grep below matches the v-prefix
+# only, so any prior version auto-upgrades on next container start.
 INSTR_MARKER="// forge:runtime-error-bridge:v"
 if is_next_project; then
   if [ ! -f instrumentation-client.ts ] \
      || grep -q "$INSTR_MARKER" instrumentation-client.ts; then
 cat > instrumentation-client.ts <<'EOF'
-// forge:runtime-error-bridge:v2
+// forge:runtime-error-bridge:v4
 // Forge-owned. Auto-regenerated by forge-bootstrap if missing or unchanged.
 // If you need custom client instrumentation, add it BELOW the bridge block —
 // do not remove the bridge.
 (() => {
   if (typeof window === "undefined") return
-  if ((window as unknown as { __forgeBridgeInstalled?: boolean }).__forgeBridgeInstalled) return
-  ;(window as unknown as { __forgeBridgeInstalled?: boolean }).__forgeBridgeInstalled = true
+  // Version-scoped install guard. Using a v4-specific name guarantees v4
+  // initialization is never silently skipped by an older sibling whose
+  // guard variable was scoped to its own version.
+  if ((window as unknown as { __forgeBridgeV4Installed?: boolean }).__forgeBridgeV4Installed) return
+  ;(window as unknown as { __forgeBridgeV4Installed?: boolean }).__forgeBridgeV4Installed = true
+  // eslint-disable-next-line no-console
+  console.log("[forge-bridge] v4 installed (runtime errors + Next overlay scrape + screenshot + visual edits)")
 
   type Payload = {
     source:    "browser"
@@ -222,7 +330,30 @@ cat > instrumentation-client.ts <<'EOF'
   const recent = new Map<string, number>()
   const DEDUP_MS = 2000
 
+  // Signature inference. Without this, every error from console.error /
+  // unhandledrejection / window.error gets the same generic signature
+  // (console_error, unhandled_rejection, window_error), and the agent has
+  // to grep the message to figure out what's actually wrong. Inferring
+  // signatures up-front lets the agent (and the FE banner) branch on a
+  // stable key — e.g. json_parse_error → "check what your fetch is
+  // returning and confirm the route exists". Pure string sniffing, no
+  // perf cost worth talking about. Order matters: most-specific first.
+  const inferSignature = (msg: string, fallback: string): string => {
+    const m = msg || ""
+    if (/Unexpected token .* is not valid JSON|JSON\.parse|SyntaxError.*JSON/i.test(m)) return "json_parse_error"
+    if (/Hydration failed|did not match.*server|Text content does not match/i.test(m)) return "hydration_mismatch"
+    if (/Maximum update depth exceeded|Too many re-renders/i.test(m)) return "react_render_loop"
+    if (/Cannot find module|Module not found.*resolve/i.test(m)) return "missing_module"
+    if (/TypeError: Cannot read prop(?:erty|erties).* of (?:undefined|null)/i.test(m)) return "null_property_access"
+    if (/ChunkLoadError|Loading chunk \d+ failed/i.test(m)) return "chunk_load_error"
+    return fallback
+  }
+
   const send = (p: Payload) => {
+    // Re-tag based on the message so payloads from generic listeners get
+    // a useful signature instead of "console_error" forever.
+    const inferred = inferSignature(p.message, p.signature ?? "browser_error")
+    p.signature = inferred
     const fp = `${p.signature ?? ""}|${p.message}|${p.file ?? ""}|${p.line ?? ""}|${p.status ?? ""}`
     const now = Date.now()
     const last = recent.get(fp) ?? 0
@@ -362,6 +493,291 @@ cat > instrumentation-client.ts <<'EOF'
       reply(ev.source, requestId, "")
     }
   })
+
+  // ── Visual edits: select-mode ─────────────────────────────────────────────
+  // Parent posts { type: "forge:select-enter" } → we attach a hover overlay
+  // and a click-capture handler. On click we walk up from event.target to
+  // the nearest element with data-forge-source (stamped by the source-stamp
+  // loader at dev compile time) and post back:
+  //   { type: "forge:select-pick", source, tag, text }
+  // Esc, scroll, or `forge:select-exit` from parent ends select mode.
+  //
+  // Cascade safety (CLAUDE.md §3.2): the overlay is a single absolutely-
+  // positioned div with INLINE styles only. We start with `all: initial` to
+  // wipe every inherited property, then set the specific styles we need.
+  // No class names, no global selectors, no shared CSS. The user's app
+  // can't override us (max z-index, !important via setProperty priority),
+  // and we can't bleed into the user's app (no shared selector surface).
+  //
+  // pointer-events: none on the overlay so it never swallows hover/clicks
+  // — the underlying element still receives the event we listen for.
+  let selectActive = false
+  let selectOverlay: HTMLDivElement | null = null
+  let selectLabel:   HTMLDivElement | null = null
+  let selectTarget:  Element | null = null
+  let selectSource:  MessageEventSource | null = null
+
+  const overlayStyle = (el: HTMLDivElement) => {
+    // Wipe inheritance, then set only what we need.
+    el.style.cssText = "all: initial;"
+    el.setAttribute("data-forge-overlay", "1")
+    // setProperty with "important" beats any !important rule the user's
+    // app might inject via a wildcard selector.
+    const set = (k: string, v: string) => el.style.setProperty(k, v, "important")
+    set("position",        "fixed")
+    set("pointer-events",  "none")
+    set("z-index",         "2147483647")
+    set("border",          "2px solid #4f8cff")
+    set("background",      "rgba(79, 140, 255, 0.12)")
+    set("box-shadow",      "0 0 0 1px rgba(255, 255, 255, 0.6) inset")
+    set("transition",      "all 80ms ease-out")
+    set("box-sizing",      "border-box")
+    set("display",         "none")
+  }
+
+  // Small tag-name pill anchored above the highlighted element. Same
+  // cascade-safety treatment as the outline overlay (all: initial, inline
+  // !important, unique data attribute, pointer-events: none).
+  const labelStyle = (el: HTMLDivElement) => {
+    el.style.cssText = "all: initial;"
+    el.setAttribute("data-forge-overlay-label", "1")
+    const set = (k: string, v: string) => el.style.setProperty(k, v, "important")
+    set("position",        "fixed")
+    set("pointer-events",  "none")
+    set("z-index",         "2147483647")
+    set("background",      "#4f8cff")
+    set("color",           "#ffffff")
+    set("font",            "600 11px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif")
+    set("padding",         "3px 6px")
+    set("border-radius",   "3px 3px 0 0")
+    set("white-space",     "nowrap")
+    set("display",         "none")
+  }
+
+  const ensureOverlay = (): HTMLDivElement => {
+    if (selectOverlay && selectOverlay.isConnected) return selectOverlay
+    const el = document.createElement("div")
+    overlayStyle(el)
+    document.documentElement.appendChild(el)
+    selectOverlay = el
+    return el
+  }
+
+  const ensureLabel = (): HTMLDivElement => {
+    if (selectLabel && selectLabel.isConnected) return selectLabel
+    const el = document.createElement("div")
+    labelStyle(el)
+    document.documentElement.appendChild(el)
+    selectLabel = el
+    return el
+  }
+
+  const positionOverlay = (target: Element | null) => {
+    const ov = selectOverlay
+    const lb = selectLabel
+    if (!ov || !lb) return
+    if (!target) {
+      ov.style.setProperty("display", "none", "important")
+      lb.style.setProperty("display", "none", "important")
+      return
+    }
+    const r = target.getBoundingClientRect()
+    if (r.width === 0 && r.height === 0) {
+      ov.style.setProperty("display", "none", "important")
+      lb.style.setProperty("display", "none", "important")
+      return
+    }
+    ov.style.setProperty("display", "block", "important")
+    ov.style.setProperty("top",    r.top + "px",    "important")
+    ov.style.setProperty("left",   r.left + "px",   "important")
+    ov.style.setProperty("width",  r.width + "px",  "important")
+    ov.style.setProperty("height", r.height + "px", "important")
+
+    // Label content: <tag> + truncated text snippet. Cheap textContent
+    // read — no innerHTML, no XSS surface.
+    const tag = (target.tagName || "").toLowerCase()
+    const text = (target.textContent || "").trim().replace(/\s+/g, " ").slice(0, 40)
+    lb.textContent = text ? `<${tag}>  ${text}` : `<${tag}>`
+
+    // Label sits above the box; if the box is too close to the top of the
+    // viewport, flip it inside the top edge so it stays visible.
+    lb.style.setProperty("display", "block", "important")
+    const labelH = 18 // approx, matches font + padding
+    const labelTop = r.top - labelH < 2 ? r.top + 2 : r.top - labelH
+    lb.style.setProperty("top",  labelTop + "px", "important")
+    lb.style.setProperty("left", r.left + "px",   "important")
+  }
+
+  // Walk up from `start` to the nearest ancestor with data-forge-source,
+  // OR the element itself if it has it. Returns null if none — caller
+  // falls back to the clicked element directly.
+  const findStamped = (start: Element | null): Element | null => {
+    let cur: Element | null = start
+    let hops = 0
+    while (cur && hops < 12) {
+      if (cur.hasAttribute && cur.hasAttribute("data-forge-source")) return cur
+      cur = cur.parentElement
+      hops++
+    }
+    return null
+  }
+
+  const onMove = (ev: MouseEvent) => {
+    if (!selectActive) return
+    const target = ev.target as Element | null
+    // Don't highlight the overlay itself.
+    if (!target || target === selectOverlay) return
+    selectTarget = target
+    positionOverlay(target)
+  }
+
+  const onClick = (ev: MouseEvent) => {
+    if (!selectActive) return
+    // Capture-phase: stop the app from receiving this click. We must use
+    // stopImmediatePropagation because the user's app may have its own
+    // capture-phase listeners; plain stopPropagation isn't enough.
+    ev.preventDefault()
+    ev.stopImmediatePropagation()
+
+    const clicked = ev.target as Element | null
+    const target  = clicked && clicked !== selectOverlay ? clicked : selectTarget
+    const stamped = findStamped(target)
+    const picked  = stamped ?? target
+    const source  = stamped?.getAttribute("data-forge-source") ?? null
+    const tag     = (picked?.tagName ?? "").toLowerCase()
+    const text    = (picked?.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 80)
+
+    try {
+      ;(selectSource as Window | null)?.postMessage(
+        { type: "forge:select-pick", source, tag, text },
+        "*",
+      )
+    } catch { /* parent unreachable — silent */ }
+
+    exitSelect()
+  }
+
+  const onKey = (ev: KeyboardEvent) => {
+    if (!selectActive) return
+    if (ev.key === "Escape") {
+      ev.preventDefault()
+      try {
+        ;(selectSource as Window | null)?.postMessage({ type: "forge:select-cancelled" }, "*")
+      } catch { /* silent */ }
+      exitSelect()
+    }
+  }
+
+  const enterSelect = (src: MessageEventSource | null) => {
+    if (selectActive) { selectSource = src; return }
+    selectActive = true
+    selectSource = src
+    ensureOverlay()
+    ensureLabel()
+    // Capture phase so we beat the app's own handlers to the click.
+    document.addEventListener("mousemove", onMove,  true)
+    document.addEventListener("click",     onClick, true)
+    document.addEventListener("keydown",   onKey,   true)
+    // Crosshair cursor signals select mode without injecting a CSS class
+    // that could collide with the user's styles.
+    document.documentElement.style.setProperty("cursor", "crosshair", "important")
+    // eslint-disable-next-line no-console
+    console.log("[forge-bridge] select-mode ENTERED")
+  }
+
+  const exitSelect = () => {
+    if (!selectActive) return
+    selectActive = false
+    selectTarget = null
+    document.removeEventListener("mousemove", onMove,  true)
+    document.removeEventListener("click",     onClick, true)
+    document.removeEventListener("keydown",   onKey,   true)
+    document.documentElement.style.removeProperty("cursor")
+    if (selectOverlay) selectOverlay.style.setProperty("display", "none", "important")
+    if (selectLabel)   selectLabel.style.setProperty("display", "none", "important")
+    // eslint-disable-next-line no-console
+    console.log("[forge-bridge] select-mode EXITED")
+  }
+
+  window.addEventListener("message", (ev: MessageEvent) => {
+    const data = ev.data
+    if (!data || typeof data !== "object") return
+    if (data.type === "forge:select-enter") {
+      enterSelect(ev.source)
+    } else if (data.type === "forge:select-exit") {
+      exitSelect()
+    }
+  })
+
+  // ── Next.js dev-overlay scraper ───────────────────────────────────────────
+  // Why this exists: Next 15 + Turbopack intercepts many runtime errors and
+  // renders them in the Console/Build overlay BEFORE our console.error shim
+  // runs (the overlay's wrapper runs at module-init time). For those errors
+  // the bridge would otherwise never fire — exactly the failure mode the
+  // user keeps hitting ("Forge isn't picking this up"). We watch the
+  // <nextjs-portal> element Next mounts for the overlay, scrape the visible
+  // error text out of its shadow root on mutation, and post it like any
+  // other browser error. Dedup is the same map send() already uses, so a
+  // single error that's also shown in console + overlay only ships once.
+  //
+  // Cost shape: one MutationObserver scoped to document.body, only on
+  // childList. Re-scopes to the portal's shadowRoot the moment the portal
+  // appears — much cheaper than polling. No work at all when there's no
+  // error overlay rendered.
+  const scrapeOverlay = (root: ParentNode): void => {
+    // Next.js dialog selectors. They have changed across major versions;
+    // we try the v13/v14/v15 shapes in order. First non-empty wins.
+    const sels = [
+      "[data-nextjs-dialog-body]",
+      "[data-nextjs-dialog]",
+      "[data-nextjs-toast-errors-parent]",
+      ".nextjs-container-errors-body",
+      ".nextjs-container-errors-header",
+      "nextjs-portal",
+    ]
+    for (const sel of sels) {
+      const el = root.querySelector(sel)
+      if (!el) continue
+      // textContent strips style; we only want the human-readable error.
+      const text = (el.textContent || "").trim().slice(0, 600)
+      if (!text || text.length < 6) continue
+      send({
+        source:    "browser",
+        signature: "next_overlay_error",
+        message:   text,
+      })
+      return
+    }
+  }
+
+  const attachOverlayObserver = (): void => {
+    // Find the portal lazily. Next mounts it the first time it has anything
+    // to show; before that, document.body is the right level to watch.
+    let portalRoot: ShadowRoot | null = null
+    const tryAttachPortal = (): boolean => {
+      const portal = document.querySelector("nextjs-portal")
+      if (!portal || !(portal as HTMLElement).shadowRoot) return false
+      portalRoot = (portal as HTMLElement).shadowRoot
+      const inner = new MutationObserver(() => {
+        if (portalRoot) scrapeOverlay(portalRoot)
+      })
+      inner.observe(portalRoot, { childList: true, subtree: true, characterData: true })
+      // Initial scrape — overlay may already be rendered when we attach.
+      scrapeOverlay(portalRoot)
+      return true
+    }
+    if (tryAttachPortal()) return
+    const outer = new MutationObserver(() => {
+      if (tryAttachPortal()) outer.disconnect()
+    })
+    outer.observe(document.body, { childList: true, subtree: false })
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", attachOverlayObserver, { once: true })
+  } else {
+    attachOverlayObserver()
+  }
 })()
 
 export {}
@@ -370,19 +786,25 @@ EOF
   fi
 fi
 
-# ── 5. DB scaffolding (OPT-IN) ───────────────────────────────────────────────
-# DB is NOT a default. Forge no longer assumes every app needs persistence —
-# the agent enables DB only when the user explicitly asks for it.
+# ── 5. DB scaffolding (OPT-IN, Postgres-per-schema) ──────────────────────────
+# DB is NOT a default. Forge scaffolds DB code only after the agent explicitly
+# enables it (via forge-enable-db.sh), which in turn requires the schema to
+# have been provisioned via POST /api/projects/{id}/db/provision (or BYO
+# Supabase). The connection string lives in `.env.local` (gitignored, excluded
+# from the project zip download — see projects.py _ZIP_EXCLUDE_FILES).
 #
-# DB is enabled if ANY of these are true:
+# Phase B (D9 in LAUNCH_PLAN): SQLite is gone. Drizzle + node-postgres only.
+# The `items` example uses `pgTable` with serial PK, timestamptz defaults, and
+# the connection comes from `process.env.DATABASE_URL`. Same Drizzle shape
+# works in both modes — local-self-host (Forge's Postgres) and hosted (BYO
+# Supabase). The only thing that changes between modes is who sets the URL.
+#
+# DB is enabled if ANY of these are true (back-compat with SQLite-era marker):
 #   - .forge/db-enabled marker file exists (set by the agent on first DB ask)
-#   - data.db already exists (back-compat for old projects)
-#   - drizzle/*.sql migrations exist (back-compat)
-#
-# When disabled (default): we write no DB files, add no DB deps, run no
-# drizzle-kit migrate. The user's app is a plain Next + Tailwind project.
+#   - drizzle/*.sql migrations already exist (project that was previously set
+#     up; we don't want to re-bootstrap and clobber custom schema)
 DB_ENABLED=0
-if [ -f .forge/db-enabled ] || [ -f data.db ] || ls drizzle/*.sql >/dev/null 2>&1; then
+if [ -f .forge/db-enabled ] || ls drizzle/*.sql >/dev/null 2>&1; then
   DB_ENABLED=1
 fi
 
@@ -394,7 +816,8 @@ if [ "$DB_ENABLED" = "1" ]; then
 cat > FORGE_DB.md <<'EOF'
 # HOW TO BUILD A DATA APP IN THIS WORKSPACE
 
-The plumbing is already done. Your job is to COPY the existing `items`
+The plumbing is already done. Drizzle + node-postgres are scaffolded and
+`DATABASE_URL` is in `.env.local`. Your job is to COPY the existing `items`
 example and rename it to whatever the user asked for. Follow this recipe
 exactly — it works every time.
 
@@ -406,18 +829,19 @@ exactly — it works every time.
 
 ### Step 1 — Add the table to `lib/db/schema.ts`
 
-The file already exports an `items` table. Add a new `sqliteTable("X", {...})`
+The file already exports an `items` table. Add a new `pgTable("X", {...})`
 right below it with whatever fields the user described. **Do not delete the
 `items` table** — leave it as a reference.
 
 ### Step 2 — Generate + apply the migration
 
 ```bash
-npx drizzle-kit generate
-npx drizzle-kit migrate
+npm run db:generate
+npm run db:migrate
 ```
 
-Both are safe to re-run.
+Both are safe to re-run. `db:generate` diffs `schema.ts` against `drizzle/`
+and writes a new SQL file; `db:migrate` applies any new files.
 
 ### Step 3 — Copy the API routes
 
@@ -440,14 +864,17 @@ calls POST / PATCH / DELETE on the same prefix.
 - ❌ `localStorage` / `sessionStorage`
 - ❌ Hardcoded data arrays as the source of truth
 - ❌ Writing to `.json` files with `fs`
-- ❌ `import Database from "better-sqlite3"` anywhere except `client.ts`
-- ❌ Raw `CREATE TABLE` DDL
-- ❌ Prisma / TypeORM / Sequelize / Mongoose / raw `pg`
+- ❌ `better-sqlite3` / `sqlite` — Forge dropped SQLite (LAUNCH_PLAN D9)
+- ❌ Raw `pg` / `Pool` / `Client` outside `client.ts`
+- ❌ Raw `CREATE TABLE` DDL — always go through `schema.ts` + drizzle-kit
+- ❌ Prisma / TypeORM / Sequelize / Mongoose
+- ❌ Echoing `DATABASE_URL` or any `.env` content in chat messages — the
+  URL contains a role password
+- ❌ `cat .env*` in tool calls that print to the conversation
 
-If you write any of the above, the Data tab will be empty and "Migrate to
-Supabase" won't work.
+If you write any of the above, the Data tab will not see your tables.
 
-**Use Drizzle. Copy `items`. Rename. Done.**
+**Use Drizzle + pgTable. Copy `items`. Rename. Done.**
 EOF
     if [ "$ROOT" = "src" ]; then
       sed -i \
@@ -459,34 +886,51 @@ EOF
     fi
   fi
 
-  # 5b. drizzle.config.ts
-  if [ ! -f drizzle.config.ts ]; then
+  # 5b. drizzle.config.ts — Postgres dialect, URL from env.
+  #     ALWAYS rewritten (not gated on existence) because models keep
+  #     freelancing this file back to SQLite. The AI can edit it during a
+  #     session and it'll get reset on the next container boot — but the
+  #     boot-time rewrite is the durable backstop. If the AI's freelanced
+  #     SQLite config breaks the build, the user restarts the container and
+  #     Postgres comes back. Same idea as postcss.config.mjs being
+  #     Forge-owned above (Tailwind section).
 cat > drizzle.config.ts <<EOF
+// Forge-owned. Do NOT edit — bootstrap regenerates this file at every
+// container start. Forge dropped SQLite (LAUNCH_PLAN D9) and any
+// \`dialect: "sqlite"\` here gets reset to "postgresql" on next boot.
 import type { Config } from "drizzle-kit"
 
 export default {
   schema:  "${SCHEMA_REL}",
   out:     "./drizzle",
-  dialect: "sqlite",
-  dbCredentials: { url: "./data.db" },
+  dialect: "postgresql",
+  dbCredentials: {
+    // DATABASE_URL is set by Forge's /db/provision flow (local-self-host) or
+    // the BYO Supabase connect flow (hosted). It carries a role password —
+    // never log this, never echo to chat.
+    url: process.env.DATABASE_URL!,
+  },
+  // The role from /db/provision has schema-scoped grants; \`search_path\` in
+  // the URL itself makes Drizzle write to the right schema with no prefix.
 } satisfies Config
 EOF
-  fi
 
-  # 5c. {ROOT}/lib/db/schema.ts
+  # 5c. {ROOT}/lib/db/schema.ts — Postgres column types.
+  #     serial PK = autoincrement integer. timestamp({ withTimezone: true })
+  #     for created/updated. Default via SQL CURRENT_TIMESTAMP.
   if [ ! -f "$ROOT/lib/db/schema.ts" ]; then
 cat > "$ROOT/lib/db/schema.ts" <<'EOF'
-// Forge schema — one source of truth.
-import { sqliteTable, integer, text } from "drizzle-orm/sqlite-core"
+// Forge schema — one source of truth (Drizzle + Postgres).
+import { pgTable, serial, text, boolean, timestamp } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
-export const items = sqliteTable("items", {
-  id:        integer("id").primaryKey({ autoIncrement: true }),
+export const items = pgTable("items", {
+  id:        serial("id").primaryKey(),
   name:      text("name").notNull(),
   notes:     text("notes"),
-  done:      integer("done", { mode: "boolean" }).notNull().default(false),
-  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
-  updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
+  done:      boolean("done").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`CURRENT_TIMESTAMP`),
 })
 
 export type Item    = typeof items.$inferSelect
@@ -495,6 +939,7 @@ EOF
   fi
 
   # 5d. {ROOT}/app/api/items/route.ts (canonical CRUD example)
+  #     Drizzle pg syntax — `.returning()` works the same, `desc` import same.
   mkdir -p "$ROOT/app/api/items"
   if [ ! -f "$ROOT/app/api/items/route.ts" ]; then
 cat > "$ROOT/app/api/items/route.ts" <<'EOF'
@@ -529,7 +974,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await req.json()
   const [row] = await db.update(items).set({
     ...body,
-    updatedAt: new Date().toISOString(),
+    // Postgres `timestamp({ withTimezone: true })` accepts Date — Drizzle
+    // serializes for us. Don't stringify here; the SQLite-era code did.
+    updatedAt: new Date(),
   }).where(eq(items.id, Number(id))).returning()
   return NextResponse.json(row)
 }
@@ -542,50 +989,148 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 EOF
   fi
 
-  # 5e. {ROOT}/lib/db/client.ts
-  if [ ! -f "$ROOT/lib/db/client.ts" ]; then
+  # 5e. {ROOT}/lib/db/client.ts — pg Pool + Drizzle node-postgres adapter.
+  #     ALWAYS rewritten (not gated on existence). Same reason as the
+  #     drizzle.config.ts above: models will rewrite this back to
+  #     better-sqlite3 given half a chance. Bootstrap re-asserts the pg
+  #     client on every boot. The AI is free to add tables to schema.ts
+  #     (5c, gated below) but cannot permanently change the driver.
 cat > "$ROOT/lib/db/client.ts" <<'EOF'
-import Database from "better-sqlite3"
-import { drizzle } from "drizzle-orm/better-sqlite3"
-import path from "path"
+// Forge-owned. Do NOT edit — bootstrap regenerates this file at every
+// container start. Forge uses node-postgres (pg) only; any better-sqlite3
+// / sqlite imports here get reset on next boot.
+import { Pool } from "pg"
+import { drizzle } from "drizzle-orm/node-postgres"
 import * as schema from "./schema"
 
-const sqlite = new Database(path.join(process.cwd(), "data.db"))
-sqlite.pragma("journal_mode = WAL")
-sqlite.pragma("foreign_keys = ON")
+// HMR-safe singleton — Next.js dev mode reloads modules; reusing the Pool
+// via globalThis prevents connection-pool fanout on every save. In prod the
+// module loads once and the guard is a no-op.
+const g = globalThis as unknown as { __forgePgPool?: Pool }
+const pool = g.__forgePgPool ?? new Pool({
+  connectionString: process.env.DATABASE_URL,
+  // Small pool — each container gets at most this many concurrent queries.
+  // Tuned for the local-self-host case where many runner containers share
+  // one Postgres. Override via PGPOOL_MAX if you need more headroom.
+  max: Number(process.env.PGPOOL_MAX ?? 5),
+})
+if (process.env.NODE_ENV !== "production") g.__forgePgPool = pool
 
-export const db = drizzle(sqlite, { schema })
+export const db = drizzle(pool, { schema })
 export { schema }
+EOF
+
+  # 5f. .env.local — placeholder so drizzle-kit doesn't crash on
+  #     "DATABASE_URL is not defined". The real URL is written by the agent
+  #     after calling POST /api/projects/{id}/db/provision (or after BYO
+  #     Supabase connect). NEVER commit .env.local — already in the default
+  #     Next.js .gitignore.
+  if [ ! -f .env.local ]; then
+cat > .env.local <<'EOF'
+# DATABASE_URL is set by Forge after the agent calls /db/provision.
+# Until then, drizzle-kit migrate will refuse to run. Run:
+#   curl -X POST $FORGE_API_URL/api/projects/$PROJECT_ID/db/provision \
+#        -H "Authorization: Bearer $FORGE_API_TOKEN"
+# and write the returned `database_url` here, then `npm run db:migrate`.
+#DATABASE_URL=
 EOF
   fi
 
-  # 5f. package.json: add Drizzle deps and scripts if missing
+  # 5g. .env.example — committed-safe template for the project zip download.
+  #     Documents the env contract for self-deployers (no secrets, no Forge-
+  #     internal URLs). Whoever downloads the project sees this and knows
+  #     what to set.
+  if [ ! -f .env.example ]; then
+cat > .env.example <<'EOF'
+# Required. The Postgres connection string for your app's database.
+# Local dev with Forge: this is set automatically by /db/provision.
+# Self-deploy: point at your own Supabase (or any Postgres) instance:
+#   postgresql://user:pass@host:5432/db?options=-csearch_path%3Dapp_<id>
+DATABASE_URL=
+
+# Optional. Tune the per-instance connection pool max. Default 5.
+#PGPOOL_MAX=10
+EOF
+  fi
+
+  # 5h. package.json: Postgres deps + Drizzle kit scripts.
+  #
+  #     Versions are FORCED, not ensured. Models keep installing old
+  #     drizzle-orm (0.30.x) / drizzle-kit (0.20.x) which still understand
+  #     SQLite — those versions accept `dialect: "sqlite"`, accept
+  #     `generate:sqlite` subcommand, accept better-sqlite3 driver. Pinning
+  #     a recent floor ELIMINATES the SQLite freelance path: drizzle-kit
+  #     0.31+ uses the unified `generate` command (no `:sqlite` suffix to
+  #     reach for) and drizzle-orm 0.44+ has clearer pg-only ergonomics in
+  #     the example we ship.
+  #
+  #     Force (not ensure) — overrides any version the AI installed.
+  #     Bootstrap then runs `pnpm install` which reconciles to these.
+  #
+  #     Drop better-sqlite3 + @types/better-sqlite3 if they're present from
+  #     an old SQLite-era project — ~40MB image bloat + a tempting import
+  #     for the model.
   node - <<'EOF'
 const fs = require("fs")
 const pj = JSON.parse(fs.readFileSync("package.json", "utf8"))
 pj.dependencies = pj.dependencies || {}
 pj.devDependencies = pj.devDependencies || {}
 pj.scripts = pj.scripts || {}
-const ensure = (o, k, v) => { if (!o[k]) o[k] = v }
-ensure(pj.dependencies, "drizzle-orm",     "^0.44.0")
-ensure(pj.dependencies, "better-sqlite3",  "^12.0.0")
-ensure(pj.devDependencies, "drizzle-kit",  "^0.31.0")
-ensure(pj.devDependencies, "@types/better-sqlite3", "^7.6.13")
-ensure(pj.devDependencies, "tsx",          "^4.19.0")
-ensure(pj.scripts, "db:generate", "drizzle-kit generate")
-ensure(pj.scripts, "db:migrate",  "drizzle-kit migrate")
-ensure(pj.scripts, "db:studio",   "drizzle-kit studio")
+const force = (o, k, v) => { o[k] = v }   // overwrite — not "if missing"
+const remove = (o, k) => { delete o[k] }
+// FORCE: Postgres-era drizzle + pg + dotenv. The exact versions are picked
+// to (a) post-date the `generate:<dialect>` subcommand syntax, (b) match
+// the bootstrap's pgTable example, (c) be released and stable as of this
+// writing. Bumping the floor is a deliberate platform decision — coordinate
+// with db.md skill content if you change these.
+force(pj.dependencies, "drizzle-orm",     "^0.44.0")
+force(pj.dependencies, "pg",              "^8.13.0")
+force(pj.devDependencies, "drizzle-kit",  "^0.31.0")
+force(pj.devDependencies, "@types/pg",    "^8.11.10")
+force(pj.devDependencies, "dotenv-cli",   "^7.4.4")
+force(pj.devDependencies, "tsx",          "^4.19.0")
+// Remove SQLite-era deps if present (Phase B cleanup, repeated here as a
+// boot-time backstop — pkg-guard rejects new installs, this purges old
+// declarations that might survive from a freelance episode).
+remove(pj.dependencies, "better-sqlite3")
+remove(pj.devDependencies, "@types/better-sqlite3")
+remove(pj.dependencies, "sqlite3")
+remove(pj.dependencies, "@libsql/client")
+remove(pj.dependencies, "prisma")
+remove(pj.devDependencies, "prisma")
+remove(pj.dependencies, "@prisma/client")
+// db:* scripts: precheck → dotenv → drizzle-kit. The precheck script
+// (installed at /usr/local/lib/forge-db-precheck.js by the runner image)
+// validates drizzle.config.ts is Postgres-shaped and auto-rewrites it if
+// the AI overrode it mid-session. Exit-1 from precheck halts the chain
+// with a clear stderr message so the AI sees what's wrong.
+//
+// FORCE these (overwrite, not "ensure") — models love to overwrite the
+// scripts with raw drizzle-kit invocations that bypass both dotenv AND
+// the precheck. The force rewrites them on every container boot.
+force(pj.scripts, "db:generate", "node /usr/local/lib/forge-db-precheck.js && dotenv -e .env.local -- drizzle-kit generate")
+force(pj.scripts, "db:migrate",  "node /usr/local/lib/forge-db-precheck.js && dotenv -e .env.local -- drizzle-kit migrate")
+force(pj.scripts, "db:studio",   "node /usr/local/lib/forge-db-precheck.js && dotenv -e .env.local -- drizzle-kit studio")
 fs.writeFileSync("package.json", JSON.stringify(pj, null, 2) + "\n")
 EOF
 
-  # NOTE: drizzle-kit generate/migrate is NOT run here. drizzle-kit needs
-  # node_modules to exist, and that doesn't happen until the install step
-  # in the Dockerfile CMD (or forge-enable-db.sh). Running generate here
-  # against an empty workspace just emits the noisy "Please install latest
-  # version of drizzle-orm" error the user kept seeing. generate/migrate
-  # belong AFTER install — see forge-enable-db.sh.
+  # 5i. Lock the Forge-owned DB files read-only. The AI can still try to
+  # edit them (Edit/Write tool gets EACCES; bash redirect fails the same
+  # way; `chmod` and `rm` on these paths are denied in opencode's bash
+  # permissions). The precheck script above is the reactive backstop if
+  # any of these locks ever fail. Bootstrap runs every container start so
+  # the perms are re-applied even if something stripped them.
+  chmod 444 drizzle.config.ts                     2>/dev/null || true
+  chmod 444 "$ROOT/lib/db/client.ts"              2>/dev/null || true
+  [ -f postcss.config.mjs ] && chmod 444 postcss.config.mjs 2>/dev/null || true
+  [ -f next.config.ts ] && chmod 444 next.config.ts 2>/dev/null || true
 
-  echo "[forge-bootstrap] DB scaffolding ready (Drizzle/SQLite)"
+  # NOTE: drizzle-kit generate/migrate is NOT run here. drizzle-kit needs
+  # node_modules + DATABASE_URL to exist. Both happen later via
+  # forge-enable-db.sh after the agent has called /db/provision and written
+  # the URL to .env.local. Running blind here just emits noisy errors.
+
+  echo "[forge-bootstrap] DB scaffolding ready (Drizzle/Postgres)"
 else
   echo "[forge-bootstrap] DB disabled — skipping Drizzle scaffold. Touch .forge/db-enabled to enable."
 fi

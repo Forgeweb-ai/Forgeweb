@@ -43,7 +43,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from forge_server.api.auth import current_user
 from forge_server.config import get_settings
-from forge_server.db.database import get_db
+from forge_server.db.database import AsyncSessionLocal, get_db
 from forge_server.db.models import Project, User
 from forge_server.runner.container_manager import (
     container_manager,
@@ -52,6 +52,7 @@ from forge_server.runner.container_manager import (
 )
 from forge_server.runner.log_parser import parse_tail
 from forge_server.runner.log_watcher import recent_errors
+from forge_server.storage.versions import create_version
 
 log      = logging.getLogger("forge.verify")
 settings = get_settings()
@@ -234,4 +235,42 @@ async def verify(
     }
     payload["summary"] = _summarize(payload)
 
+    # ── Per-AI-turn version snapshot (best-effort, fire-and-forget) ──────────
+    # When verify lands on a CLEAN success (container running, health ok,
+    # no fatal, no log errors), the AI turn produced something worth
+    # preserving — capture it as a new version. create_version is a no-op
+    # when the manifest matches the current head (see
+    # storage/versions.py), so a debug loop that calls verify several
+    # times per turn produces at most ONE version.
+    #
+    # Three guardrails:
+    #   1. Fire-and-forget: we do NOT await this. Snapshot can take
+    #      hundreds of ms (hash + Storage uploads); the verify response
+    #      must stay fast.
+    #   2. Fresh AsyncSession in the task — the request's `db` will be
+    #      closed by FastAPI before the task runs.
+    #   3. Swallow + log any exception. A failed snapshot must NEVER
+    #      surface as a verify failure to the agent.
+    if health_ok and not fatal and not log_errors:
+        asyncio.create_task(_snapshot_after_turn(project_id))
+
     return VerifyReport(**payload)
+
+
+async def _snapshot_after_turn(project_id: str) -> None:
+    """Background snapshot, called fire-and-forget from the verify endpoint.
+
+    Owns its own AsyncSession because the request's session is closed by
+    the time this runs. Logs and absorbs every failure mode — a snapshot
+    error must not be observable from the verify flow.
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            project = await db.get(Project, project_id)
+            if project is None:
+                return
+            await create_version(db, project, prompt=None, summary=None)
+    except Exception:
+        # Storage outage, walk error, schema drift — none of it should
+        # crash verify. Log with project_id so an operator can correlate.
+        log.exception("post-verify snapshot failed for project %s", project_id)

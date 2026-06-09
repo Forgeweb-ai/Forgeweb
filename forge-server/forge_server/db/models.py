@@ -31,9 +31,10 @@ from __future__ import annotations
 import uuid
 
 from sqlalchemy import (
-    BigInteger, Boolean, Column, DateTime, ForeignKey,
+    CHAR, BigInteger, Boolean, Column, DateTime, ForeignKey, Index,
     Integer, String, Text, UniqueConstraint, Uuid,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -77,6 +78,15 @@ class User(Base):
     role          = Column(String(50),  nullable=True)   # founder|product|designer|engineer|consultant|marketing-sales|operations|other
     company_size  = Column(String(20),  nullable=True)   # solo|2-20|21-200|200+
     theme_pref    = Column(String(10),  nullable=True)   # light|dark
+
+    # Free-form preferences markdown ("skills.md") — injected into every
+    # project session's system prompt per-turn so the AI remembers user
+    # standing preferences across all of their apps. Edited via Settings →
+    # Preferences. Null/empty = nothing injected (zero added tokens).
+    # Stored as TEXT (not embedded in user_settings.settings_json) because
+    # it's a multi-KB blob and JSON escaping multi-line markdown is awkward.
+    # See migration 0007.
+    preferences_md = Column(Text, nullable=True)
 
     projects      = relationship("Project",         back_populates="user", cascade="all, delete-orphan")
     settings      = relationship("UserSettings",    back_populates="user", uselist=False, cascade="all, delete-orphan")
@@ -140,11 +150,27 @@ class Project(Base):
     forked_from_project_id = Column(UuidCol, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True)
     clone_count            = Column(Integer, nullable=False, server_default="0")
 
+    # Current materialized version. NULL until the first version is created
+    # (new projects don't have a version row until the first AI turn lands).
+    # Rollback sets this to an ancestor; descendants are then marked
+    # orphaned. ON DELETE SET NULL so a stray version delete cannot
+    # cascade-nuke the project. See [[forge_storage_architecture]].
+    head_version_id = Column(UuidCol, ForeignKey("versions.id", ondelete="SET NULL"), nullable=True)
+
     user      = relationship("User", back_populates="projects")
     container = relationship("DevContainer",        back_populates="project", uselist=False, cascade="all, delete-orphan")
     supabase  = relationship("SupabaseConnection",  back_populates="project", uselist=False, cascade="all, delete-orphan")
     env_vars  = relationship("ProjectEnvVar",       back_populates="project", cascade="all, delete-orphan")
     snapshots = relationship("Snapshot",            back_populates="project", cascade="all, delete-orphan")
+    # Versions: per-AI-turn content-addressed snapshots. Cascade-delete so
+    # tearing down a project also drops its version chain (and the blob
+    # refcounts are decremented by the deletion hook in storage/versions.py).
+    versions  = relationship(
+        "Version",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        foreign_keys="Version.project_id",
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -179,7 +205,7 @@ class DevContainer(Base):
     # Preview URL — subdomain or path-based depending on config
     preview_url    = Column(String(500), nullable=True)
 
-    # Last ping from forge-ui-new (used by sleep worker)
+    # Last ping from forge-ui (used by sleep worker)
     last_ping_at   = Column(DateTime(timezone=True), nullable=True)
 
     started_at     = Column(DateTime(timezone=True), nullable=True)
@@ -195,13 +221,25 @@ class DevContainer(Base):
 
 class SupabaseConnection(Base):
     """
-    Supabase project credentials for a forge project.
-    service_role_key is stored encrypted (see supabase_manager.py).
+    Postgres connection for a Forge project. Two flavours, same table:
 
-    Future columns to add when wiring OAuth (Task #5):
-      - management_token_enc  (Supabase Management API token, scoped)
-      - supabase_org_id       (org the project lives in)
-      - project_ref           (Supabase project ref, for Management API calls)
+      1. **Provisioned locally** (`provisioned_locally=True`): Forge created a
+         schema + role inside its own local Postgres for the user's generated
+         app. This is the default in `local-self-host` mode — the user doesn't
+         set up a second Supabase. `supabase_url` points at Forge's local
+         Postgres host, `anon_key` carries the scoped role's connection-string
+         password, `service_role_key` is NULL (no privileged key needed; the
+         role is already scoped to one schema).
+
+      2. **BYO Supabase** (`provisioned_locally=False`): the user connected an
+         external Supabase project via OAuth or manual paste. `supabase_url`
+         is `https://<ref>.supabase.co`, `anon_key` / `service_role_key` are
+         the real Supabase JWTs. Used in `hosted` mode and as the migration
+         target when a `local-self-host` user goes to production.
+
+    Why one table for both: `/db/info` and every consumer just needs a
+    connection-string-equivalent. Splitting would force every reader to JOIN
+    or UNION two tables for no semantic gain. Disambiguate via the flag.
     """
     __tablename__ = "supabase_connections"
 
@@ -211,6 +249,19 @@ class SupabaseConnection(Base):
     supabase_url     = Column(String(500), nullable=False)
     anon_key         = Column(Text, nullable=False)
     service_role_key = Column(Text, nullable=True)   # Fernet-encrypted at rest
+
+    # ── Provisioned-locally fields (NULL when this is a BYO Supabase row) ────
+    # True ⇒ Forge owns this schema/role inside its local Postgres and may
+    # drop them on disconnect; False ⇒ external Supabase, never touch.
+    provisioned_locally = Column(Boolean, nullable=False, server_default="false")
+    # Postgres schema name, e.g. "app_a1b2c3d4". NULL for BYO Supabase rows.
+    schema_name         = Column(String(63), nullable=True)
+    # Postgres role name, same shape. NULL for BYO.
+    role_name           = Column(String(63), nullable=True)
+    # Fernet-encrypted role password (the password we wrote into the connstr).
+    # NULL for BYO rows. We keep it so we can hand the connstr to the runner
+    # container every boot — we never let the role be passwordless.
+    role_password_enc   = Column(Text, nullable=True)
 
     connected_at     = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     last_used_at     = Column(DateTime(timezone=True), nullable=True)
@@ -349,6 +400,65 @@ class Snapshot(Base):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Blob + Version — content-addressed snapshot store
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Replaces the per-snapshot tarball model with per-file deduplication:
+# each unique file content (by sha256) is stored exactly once in Supabase
+# Storage and shared by all versions of all projects that reference it.
+# A Version is the project's state at a point in time, encoded as
+# manifest = { rel_path: sha256 }. See [[forge_storage_architecture]].
+
+class Blob(Base):
+    """One row per unique file CONTENT across the platform.
+
+    refcount is maintained transactionally on version create/orphan/hard-
+    delete. When refcount hits 0, the GC worker is free to delete the
+    backing Storage object (after a grace window — see versions.py).
+    """
+    __tablename__ = "blobs"
+
+    sha256       = Column(CHAR(64), primary_key=True)
+    size_bytes   = Column(BigInteger, nullable=False)
+    content_type = Column(String(100), nullable=True)
+    # Number of live manifest entries pointing at this blob. NEVER decrement
+    # without holding the version's transaction — the increment + decrement
+    # paths must mirror each other or storage and DB drift apart.
+    refcount     = Column(Integer, nullable=False, server_default="0")
+    created_at   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class Version(Base):
+    """One row per AI turn (created post-verify).
+
+    manifest is a flat dict `{ rel_path: sha256 }` covering every file in
+    the workspace at the moment the version was captured (excluding
+    node_modules, .git, dist, etc. — see SNAPSHOT_EXCLUDES).
+
+    Live versions have orphaned_at = NULL. A soft rollback to an ancestor
+    marks intervening descendants orphaned but does NOT delete them; the
+    GC worker hard-deletes (and decrements refcounts) after the grace
+    window. parent_version_id forms a chain — linear in v1, branchable
+    later for free.
+    """
+    __tablename__ = "versions"
+
+    id                = Column(UuidCol, primary_key=True, default=_uuid)
+    project_id        = Column(UuidCol, ForeignKey("projects.id", ondelete="CASCADE"),
+                               nullable=False)
+    parent_version_id = Column(UuidCol, ForeignKey("versions.id", ondelete="SET NULL"),
+                               nullable=True)
+    prompt            = Column(Text, nullable=True)   # the user prompt that produced this version
+    summary           = Column(Text, nullable=True)   # short label for the dropdown (AI-generated)
+    manifest          = Column(JSONB, nullable=False)
+    orphaned_at       = Column(DateTime(timezone=True), nullable=True)
+    created_at        = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    project = relationship("Project", back_populates="versions", foreign_keys=[project_id])
+    parent  = relationship("Version", remote_side=[id])
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # UserSupabaseOAuth — per-user Supabase OAuth token (BYOK for user apps)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -372,3 +482,112 @@ class UserSupabaseOAuth(Base):
     supabase_user_email = Column(String(255), nullable=True)
     connected_at        = Column(DateTime(timezone=True),
                                  server_default=func.now(), nullable=False)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ImageJob — async image-generation queue
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ImageJob(Base):
+    """
+    One row per image the main agent has requested.
+
+    Flow (see forge_server/imagegen/worker.py + TODO_IMAGE_GEN.md):
+      1. opencode's `request_images` tool POSTs to forge-server, which
+         inserts N rows with status='queued' and returns the slot_ids.
+      2. The worker drains queued rows, calls the provider with the user's
+         decrypted BYOK key, uploads the result, sets output_url + status='done'.
+      3. The runner resolves /forge-img/{slot_id} by looking up the row:
+         done → 302 to output_url; queued/running → shimmer SVG;
+         failed → fallback URL (alt-keyword Unsplash) so the user's page
+         is never broken just because one provider call hiccuped.
+
+    Why a table, not a queue (Redis/RabbitMQ): we already require Postgres,
+    and image-gen volume is bounded (max 6 per turn, hundreds per project
+    lifetime). A table + indexed SELECT FOR UPDATE SKIP LOCKED gives us a
+    free queue with durability, dedup, and history — no new infra to operate
+    × 100k containers. Revisit only if a single project ever queues 1M jobs.
+
+    Indexing:
+      - (project_id, status) — worker scan + status pill query
+      - (project_id, slot_id) UNIQUE — runner /forge-img/{slot_id} lookup
+      - (dedup_hash) UNIQUE WHERE dedup_hash IS NOT NULL — fast "same prompt
+        already generated?" check; partial index keeps it sub-linear without
+        bloating on rows that opted out of dedup.
+
+    `slot_id` is a short opaque string (12 random base32 chars) the main
+    agent embeds in the JSX (`<img src="/forge-img/{slot_id}.png">`). It's
+    project-scoped, not globally unique, so leaking one across projects
+    can't even be used to enumerate other projects' assets.
+    """
+    __tablename__ = "image_jobs"
+
+    id           = Column(UuidCol, primary_key=True, default=_uuid)
+    project_id   = Column(UuidCol, ForeignKey("projects.id", ondelete="CASCADE"),
+                          nullable=False)
+    # Short opaque slot id embedded in generated JSX. Project-scoped uniqueness.
+    slot_id      = Column(String(24), nullable=False)
+
+    # queued | running | done | failed
+    # State machine is one-way: queued → running → (done | failed).
+    # Failed jobs are NOT retried by the worker automatically — the user can
+    # re-trigger from the FE if they want a second attempt. Auto-retry on a
+    # provider that just charged us is a cost-surprise bug at 100k scale.
+    status       = Column(String(16), nullable=False, server_default="queued")
+
+    provider_id  = Column(String(64),  nullable=False)
+    model_id     = Column(String(128), nullable=False)
+    prompt       = Column(Text, nullable=False)
+
+    # Reference image, when this is an img-to-img request. References the
+    # content-addressed blob store ([[forge_versioning_v1]]) by sha256 so
+    # the same reference doesn't cost extra storage. NULL = pure text-to-image.
+    ref_blob_sha = Column(CHAR(64), nullable=True)
+
+    # Target size, e.g. "1024x1024". Echo of the registry's size — kept
+    # denormalised so reading a finished job doesn't require re-resolving
+    # the registry version it was generated against.
+    size         = Column(String(16), nullable=False)
+
+    # sha256(f"{provider}|{model}|{size}|{prompt}|{ref_blob_sha or ''}")
+    # NULL when the caller opted out of dedup (e.g. a re-roll button). The
+    # UNIQUE WHERE NOT NULL index is added in the alembic migration, not
+    # here, because SQLAlchemy's UniqueConstraint doesn't support partial
+    # indexes portably.
+    dedup_hash   = Column(CHAR(64), nullable=True)
+
+    # Final asset URL on success. Public Supabase Storage URL when the user
+    # has Supabase connected; otherwise the runner-served `/forge-img/...`
+    # path that wraps the on-disk file.
+    output_url   = Column(String(1024), nullable=True)
+
+    # Short user-visible failure reason. NEVER carries provider raw output
+    # (could leak the key or internal IDs); the worker maps provider errors
+    # to a small set of categories: "rate_limit", "auth", "content_policy",
+    # "timeout", "unknown".
+    error        = Column(String(64), nullable=True)
+
+    created_at   = Column(DateTime(timezone=True),
+                          server_default=func.now(), nullable=False)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Number of times the worker has claimed this job. Increments on every
+    # re-queue (one inner 3-retry burst = one attempt). Capped by the worker
+    # at MAX_ATTEMPTS — beyond that the job is permanently failed so a
+    # misbehaving provider can't ride the queue forever.
+    attempts        = Column(Integer, nullable=False, server_default="0")
+
+    # NULL = "ready immediately". Non-NULL = "worker must not claim until
+    # t >= next_attempt_at". Set by the worker when re-queueing after a
+    # rate-limit burst exhausted the inner retries.
+    next_attempt_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("project_id", "slot_id", name="uq_image_job_project_slot"),
+        Index("ix_image_jobs_project_status", "project_id", "status"),
+        # Partial index over queued-only rows, ordered by due-time. Lets the
+        # claim query find the next-due row in O(log n) regardless of how
+        # many done/failed rows accumulate over a project's lifetime. The
+        # partial-WHERE is added in alembic (SQLAlchemy can't express it
+        # portably); declared here for documentation only.
+    )

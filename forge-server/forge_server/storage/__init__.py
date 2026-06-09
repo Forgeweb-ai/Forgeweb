@@ -15,10 +15,20 @@ from forge_server.storage.snapshots import (
     rehydrate_from_latest_snapshot,
 )
 from forge_server.storage.supabase_storage import SupabaseStorageClient
+from forge_server.storage.versions import (
+    create_version,
+    list_versions,
+    restore_version,
+)
 
 __all__ = [
+    # legacy tarball snapshots (kept for old rows; not the new write path)
     "create_snapshot",
     "latest_snapshot_for",
     "rehydrate_from_latest_snapshot",
+    # content-addressed versions (the new path)
+    "create_version",
+    "list_versions",
+    "restore_version",
     "SupabaseStorageClient",
 ]

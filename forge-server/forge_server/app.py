@@ -39,10 +39,20 @@ from forge_server.api.supabase_routes  import router as supabase_router
 from forge_server.api.supabase_oauth   import router as supabase_oauth_router
 from forge_server.api.config_routes    import router as config_router
 from forge_server.api.settings_routes  import router as settings_router
+from forge_server.api.preferences_routes import router as preferences_router
 from forge_server.api.provider_routes  import router as provider_router
+from forge_server.api.image_models_routes import router as image_models_router
+from forge_server.api.project_images_routes import router as project_images_router
+# /forge-img route removed 2026-06-04: generated images now live inside the
+# project workspace at public/images/, served by the project's own dev
+# server. Keeping the import line out so a stale forge_img_routes.py module
+# can't silently re-register the dead route on reload.
 from forge_server.api.db_routes        import router as db_routes_router
 from forge_server.api.verify_routes    import router as verify_routes_router
 from forge_server.api.runtime_errors_routes import router as runtime_errors_router
+from forge_server.api.versions         import router as versions_router
+from forge_server.api.internal_routes    import router as internal_router
+from forge_server.runner.opencode_proxy   import router as opencode_proxy_router, shutdown as opencode_proxy_shutdown
 
 settings = get_settings()
 
@@ -129,20 +139,59 @@ async def lifespan(app: FastAPI):
     task = asyncio.create_task(sleep_worker())
     log.info("Sleep worker started")
 
+    # Image-generation worker — drains the image_jobs queue. No-op when the
+    # table is empty (default state for accounts that haven't enabled
+    # image-gen), so zero added cost for users not using the feature.
+    from forge_server.imagegen.worker import image_worker
+    imagegen_task = asyncio.create_task(image_worker())
+
     # Background snapshot worker — periodically uploads dirty workspaces to
     # Supabase Storage. No-op if SUPABASE_SERVICE_ROLE_KEY isn't configured.
     from forge_server.storage.worker import snapshot_worker
     snap_task = asyncio.create_task(snapshot_worker())
 
+    # Log-watcher supervisor — every 30s, walks every registered watcher and
+    # restarts any whose background task died. The per-watcher `_run` loop
+    # already retries on transient docker errors; this is the belt-and-
+    # braces layer for the case where `_run` itself crashes hard. Without
+    # it, a dead watcher leaves the project permanently blind to runtime
+    # errors until the next container.ensure() — which may be hours away.
+    from forge_server.runner.log_watcher import supervisor_loop as _watcher_supervisor
+    supervisor_task = asyncio.create_task(_watcher_supervisor())
+
+    # Runtime-error bridge backfill — walk every existing project workspace
+    # and upgrade any missing/stale instrumentation-client.ts to the current
+    # version. Without this, projects created before this code shipped (or
+    # whose container's bootstrap died mid-run) stay permanently missing
+    # the bridge → no runtime-error capture, no select mode, no preview
+    # screenshot — exactly the class of "Forge stopped working for this
+    # project" report we keep getting. Runs in a thread (the function is
+    # sync filesystem I/O) so it doesn't block startup. Counters logged at
+    # finish; non-fatal.
+    async def _run_bridge_backfill():
+        try:
+            from forge_server.runner.container_manager import backfill_bridges
+            counts = await asyncio.to_thread(backfill_bridges)
+            log.info("bridge backfill complete: %s", counts)
+        except Exception as e:
+            log.warning("bridge backfill failed: %s", e)
+    bridge_task = asyncio.create_task(_run_bridge_backfill())
+
     yield
 
     task.cancel()
     snap_task.cancel()
-    for t in (task, snap_task):
+    supervisor_task.cancel()
+    bridge_task.cancel()
+    imagegen_task.cancel()
+    for t in (task, snap_task, supervisor_task, bridge_task, imagegen_task):
         try:
             await t
         except asyncio.CancelledError:
             pass
+
+    # Release the keep-alive pool the opencode proxy holds open.
+    await opencode_proxy_shutdown()
 
     log.info("forge-server shut down")
 
@@ -173,10 +222,21 @@ app.include_router(supabase_router)
 app.include_router(supabase_oauth_router)
 app.include_router(config_router)
 app.include_router(settings_router)
+app.include_router(preferences_router)
 app.include_router(provider_router)
+app.include_router(image_models_router)
+app.include_router(project_images_router)
 app.include_router(db_routes_router)
 app.include_router(verify_routes_router)
 app.include_router(runtime_errors_router)
+app.include_router(versions_router)
+# Service-to-service routes called by the opencode fork to resolve per-user
+# runtime values (e.g. design-model). HMAC-gated, not user-JWT-gated.
+app.include_router(internal_router)
+# Phase 2 BYOK: every browser→opencode call comes through here so per-user
+# keys can be attached as a request-scoped header (X-Forge-Auth). Opencode is
+# not exposed to the internet — this is the only path.
+app.include_router(opencode_proxy_router)
 
 # ── Preview routing ───────────────────────────────────────────────────────────
 # Project previews are reached at http(s)://{project_id}.{PREVIEW_DOMAIN}/

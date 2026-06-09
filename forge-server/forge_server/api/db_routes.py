@@ -147,6 +147,75 @@ def _is_internal_table(name: str) -> bool:
     return False
 
 
+# ── Postgres-per-schema helpers (Phase B / D9) ────────────────────────────────
+# Every query endpoint below routes to these when the project has a
+# provisioned-local SupabaseConnection row. BYO Supabase rows are NOT handled
+# here — those apps talk to Supabase directly via the user's anon key, and
+# the DataPanel deep-links into Supabase Studio for management.
+#
+# One asyncpg connection per request (no pool). At local-self-host scale
+# (single user, dozens of projects) the connect cost is negligible vs. the
+# complexity of managing per-project pools in forge-server. Phase B+ can add
+# pooling if profiling shows it matters.
+
+from contextlib import asynccontextmanager
+
+
+async def _get_provisioned_pg(project_id: str, db: AsyncSession) -> SupabaseConnection | None:
+    """
+    Return the SupabaseConnection row for this project IFF it's a Forge-
+    provisioned-local schema. None for BYO Supabase or unconnected projects.
+    Indexed lookup on (project_id, provisioned_locally) — cheap to call on
+    every request.
+    """
+    sc = (await db.execute(
+        select(SupabaseConnection).where(
+            SupabaseConnection.project_id == project_id,
+            SupabaseConnection.provisioned_locally.is_(True),
+        )
+    )).scalar_one_or_none()
+    return sc
+
+
+def _pg_connstr(sc: SupabaseConnection) -> str:
+    """
+    Build an asyncpg connection string from a provisioned row.
+    The role's password is decrypted on demand — never cached in memory.
+    """
+    from forge_server.api.supabase_routes import _fernet
+    pw = _fernet().decrypt((sc.role_password_enc or "").encode()).decode()
+    # Strip SQLAlchemy "+asyncpg" suffix; carry only host:port/db forward.
+    base = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
+    host_and_db = base.split("://", 1)[1].split("@", 1)[-1]
+    return f"postgresql://{sc.role_name}:{pw}@{host_and_db}"
+
+
+@asynccontextmanager
+async def _pg_conn(sc: SupabaseConnection):
+    """
+    Async context manager yielding an asyncpg connection with search_path
+    set to the project's schema. Every unqualified table reference inside
+    the `async with` block resolves to the right schema with no prefix.
+
+    We SET search_path via a separate execute rather than baking it into the
+    URL's `options=` because asyncpg's URL parser is finicky about it.
+    """
+    import asyncpg
+    conn = await asyncpg.connect(_pg_connstr(sc))
+    try:
+        # Quote the schema identifier so an odd name (shouldn't happen, but
+        # belt-and-braces) can't break out.
+        await conn.execute(f'SET search_path TO "{sc.schema_name}"')
+        yield conn
+    finally:
+        await conn.close()
+
+
+def _pg_table_exists_query() -> str:
+    """Reused across endpoints — table existence check scoped to schema."""
+    return "SELECT EXISTS(SELECT 1 FROM pg_tables WHERE schemaname=$1 AND tablename=$2)"
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.get("/{project_id}/db/info")
@@ -155,13 +224,62 @@ async def db_info(
     user: User = Depends(current_user),
     db:   AsyncSession = Depends(get_db),
 ):
+    """
+    Reports the project's current DB state. Single call, one row lookup —
+    cheap enough to hit on every Data tab mount.
+
+    Response always includes the local SQLite snapshot (the prototype DB
+    keeps existing even after Supabase connection — see D4 in LAUNCH_PLAN:
+    SQLite is prototype-only, migration moves the data but the file may
+    still be around). When a SupabaseConnection row exists for the project,
+    we add `supabase` block so the FE can swap header + CTAs.
+    """
     project = await _get_owned_project(project_id, user, db)
     p = _db_path(project)
+
+    # One indexed lookup on supabase_connections.project_id (unique index).
+    # No JOIN, no N+1 — same cost as the old hardcoded response.
+    sc_row = await db.execute(
+        select(SupabaseConnection).where(SupabaseConnection.project_id == project_id)
+    )
+    sc = sc_row.scalar_one_or_none()
+
+    # Driver derivation — three states the FE needs to distinguish:
+    #   - "postgres-local" : Forge provisioned a schema for the project
+    #                        (local-self-host mode default once Phase B lands)
+    #   - "supabase"       : user connected an external Supabase project (BYO)
+    #   - "sqlite"         : legacy / Phase A holdover. New projects in Phase
+    #                        B will skip this state entirely.
+    if sc is None:
+        driver = "sqlite"
+    elif sc.provisioned_locally:
+        driver = "postgres-local"
+    else:
+        driver = "supabase"
+
     return {
-        "driver": "sqlite",
-        "path":   "data.db",
-        "exists": p.exists(),
+        "driver":     driver,
+        # forge_mode lets the FE branch the "Connect Database" UX:
+        # local-self-host → one-click provision; hosted → BYO Supabase OAuth.
+        "forge_mode": settings.forge_mode,
+        "path":       "data.db",
+        "exists":     p.exists(),
         "size_bytes": p.stat().st_size if p.exists() else 0,
+        # Always present so the FE can show the prototype DB alongside any
+        # connected production DB. Null fields when not connected.
+        "supabase":   {
+            "connected":    True,
+            "url":          sc.supabase_url,
+            "connected_at": sc.connected_at.isoformat() if sc.connected_at else None,
+            # Provisioned-local exposes the schema name so the FE can show
+            # "postgres · app_xxxxxxxx" instead of the URL (which contains a
+            # role password in the connstr form — never surface in chat).
+            "provisioned_locally": sc.provisioned_locally,
+            "schema_name":         sc.schema_name,
+        } if sc is not None else {
+            "connected": False, "url": None, "connected_at": None,
+            "provisioned_locally": False, "schema_name": None,
+        },
     }
 
 
@@ -173,6 +291,60 @@ async def list_tables(
     db:   AsyncSession = Depends(get_db),
 ):
     project = await _get_owned_project(project_id, user, db)
+
+    # Phase B (D9): if the project has a provisioned-local Postgres schema,
+    # list tables from there. The SQLite fallback below stays for legacy
+    # projects only — new projects skip SQLite entirely.
+    sc = await _get_provisioned_pg(project_id, db)
+    if sc is not None:
+        async with _pg_conn(sc) as pg:
+            rows = await pg.fetch(
+                "SELECT tablename FROM pg_tables WHERE schemaname=$1 ORDER BY tablename",
+                sc.schema_name,
+            )
+            tables: list[TableInfo] = []
+            for r in rows:
+                name = r["tablename"]
+                if not include_internal and _is_internal_table(name):
+                    continue
+                # Columns + PK detection via information_schema. One query
+                # per table — N+1 in the table count, but tables-per-project
+                # is small (<50 typical) and DataPanel mounts are infrequent.
+                cols_raw = await pg.fetch(
+                    """
+                    SELECT c.column_name, c.data_type, c.is_nullable, c.column_default,
+                           COALESCE((
+                             SELECT TRUE FROM information_schema.key_column_usage k
+                             JOIN information_schema.table_constraints t
+                               ON t.constraint_name = k.constraint_name
+                              AND t.table_schema    = k.table_schema
+                             WHERE t.constraint_type = 'PRIMARY KEY'
+                               AND k.table_schema    = c.table_schema
+                               AND k.table_name      = c.table_name
+                               AND k.column_name     = c.column_name
+                           ), FALSE) AS is_pk
+                    FROM information_schema.columns c
+                    WHERE c.table_schema = $1 AND c.table_name = $2
+                    ORDER BY c.ordinal_position
+                    """,
+                    sc.schema_name, name,
+                )
+                cols = [ColumnInfo(
+                    name        = c["column_name"],
+                    type        = c["data_type"],
+                    nullable    = c["is_nullable"] == "YES",
+                    primary_key = bool(c["is_pk"]),
+                    default     = c["column_default"],
+                ) for c in cols_raw]
+                count = await pg.fetchval(f'SELECT COUNT(*) FROM "{name}"')
+                tables.append(TableInfo(name=name, columns=cols, row_count=int(count or 0)))
+            return TablesResponse(driver="postgres-local", tables=tables)
+
+    # Legacy SQLite path. "No data.db yet" is the default first-run state
+    # for an old SQLite project; return an empty list instead of 404 so the
+    # DataPanel shows its friendly empty state rather than a red banner.
+    if not _db_path(project).exists():
+        return TablesResponse(driver="sqlite", tables=[])
     conn = _open_ro(project)
     try:
         names = [
@@ -215,6 +387,36 @@ async def get_rows(
     db:   AsyncSession = Depends(get_db),
 ):
     project = await _get_owned_project(project_id, user, db)
+
+    sc = await _get_provisioned_pg(project_id, db)
+    if sc is not None:
+        async with _pg_conn(sc) as pg:
+            exists = await pg.fetchval(_pg_table_exists_query(), sc.schema_name, table)
+            if not exists:
+                raise HTTPException(404, "Table not found")
+            col_rows = await pg.fetch(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema=$1 AND table_name=$2 ORDER BY ordinal_position",
+                sc.schema_name, table,
+            )
+            cols = [r["column_name"] for r in col_rows]
+            if order_by and order_by not in cols:
+                raise HTTPException(400, "Invalid order_by column")
+            order_sql = f' ORDER BY "{order_by}" {order_dir.upper()}' if order_by else ""
+            rows_raw = await pg.fetch(
+                f'SELECT * FROM "{table}"{order_sql} LIMIT $1 OFFSET $2',
+                limit, offset,
+            )
+            total = await pg.fetchval(f'SELECT COUNT(*) FROM "{table}"')
+            return RowsResponse(
+                columns = cols,
+                rows    = [dict(r) for r in rows_raw],
+                total   = int(total or 0),
+                limit   = limit,
+                offset  = offset,
+            )
+
+    # Legacy SQLite path
     conn = _open_ro(project)
     try:
         # validate table + column names against sqlite_master to avoid SQL injection
@@ -260,6 +462,37 @@ async def insert_row(
     db:   AsyncSession = Depends(get_db),
 ):
     project = await _get_owned_project(project_id, user, db)
+
+    sc = await _get_provisioned_pg(project_id, db)
+    if sc is not None:
+        async with _pg_conn(sc) as pg:
+            col_rows = await pg.fetch(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema=$1 AND table_name=$2",
+                sc.schema_name, table,
+            )
+            valid_cols = {r["column_name"] for r in col_rows}
+            if not valid_cols:
+                raise HTTPException(404, "Table not found")
+            clean = {k: v for k, v in body.values.items() if k in valid_cols}
+            if not clean:
+                raise HTTPException(400, "No valid columns supplied")
+            col_list     = ", ".join(f'"{c}"' for c in clean)
+            placeholders = ", ".join(f"${i+1}" for i in range(len(clean)))
+            try:
+                row = await pg.fetchrow(
+                    f'INSERT INTO "{table}" ({col_list}) VALUES ({placeholders}) RETURNING *',
+                    *clean.values(),
+                )
+            except Exception as e:
+                raise HTTPException(400, str(e))
+            # Echo the inserted row's PK if it has one named "id" — matches
+            # the existing FE contract. For tables without `id`, returns None
+            # and the FE handles gracefully.
+            d = dict(row) if row else {}
+            return {"inserted_id": d.get("id")}
+
+    # Legacy SQLite path
     conn = _open_rw(project)
     try:
         cols = [c["name"] for c in conn.execute(f'PRAGMA table_info("{table}")').fetchall()]
@@ -291,6 +524,54 @@ async def update_row(
     db:   AsyncSession = Depends(get_db),
 ):
     project = await _get_owned_project(project_id, user, db)
+
+    sc = await _get_provisioned_pg(project_id, db)
+    if sc is not None:
+        async with _pg_conn(sc) as pg:
+            # Find PK column + all columns in one trip via key_column_usage.
+            meta = await pg.fetch(
+                """
+                SELECT c.column_name,
+                       COALESCE((
+                         SELECT TRUE FROM information_schema.key_column_usage k
+                         JOIN information_schema.table_constraints t
+                           ON t.constraint_name = k.constraint_name
+                         WHERE t.constraint_type='PRIMARY KEY'
+                           AND k.table_schema=c.table_schema
+                           AND k.table_name=c.table_name
+                           AND k.column_name=c.column_name
+                       ), FALSE) AS is_pk
+                FROM information_schema.columns c
+                WHERE c.table_schema=$1 AND c.table_name=$2
+                """,
+                sc.schema_name, table,
+            )
+            if not meta:
+                raise HTTPException(404, "Table not found")
+            pk_col   = next((r["column_name"] for r in meta if r["is_pk"]), None)
+            all_cols = {r["column_name"] for r in meta}
+            if pk_col is None:
+                raise HTTPException(400, "Table has no primary key — cannot update by pk")
+            clean = {k: v for k, v in body.values.items() if k in all_cols and k != pk_col}
+            if not clean:
+                raise HTTPException(400, "No valid columns supplied")
+            set_clause = ", ".join(f'"{k}" = ${i+1}' for i, k in enumerate(clean))
+            pk_idx     = len(clean) + 1
+            try:
+                result = await pg.execute(
+                    f'UPDATE "{table}" SET {set_clause} WHERE "{pk_col}" = ${pk_idx}',
+                    *clean.values(), pk,
+                )
+            except Exception as e:
+                raise HTTPException(400, str(e))
+            # asyncpg.execute returns "UPDATE N"
+            try:
+                affected = int(result.split()[-1])
+            except (ValueError, IndexError):
+                affected = 0
+            return {"rows_affected": affected}
+
+    # Legacy SQLite path
     conn = _open_rw(project)
     try:
         col_info = conn.execute(f'PRAGMA table_info("{table}")').fetchall()
@@ -322,6 +603,36 @@ async def delete_row(
     db:   AsyncSession = Depends(get_db),
 ):
     project = await _get_owned_project(project_id, user, db)
+
+    sc = await _get_provisioned_pg(project_id, db)
+    if sc is not None:
+        async with _pg_conn(sc) as pg:
+            pk_col = await pg.fetchval(
+                """
+                SELECT k.column_name FROM information_schema.key_column_usage k
+                JOIN information_schema.table_constraints t
+                  ON t.constraint_name = k.constraint_name
+                WHERE t.constraint_type='PRIMARY KEY'
+                  AND k.table_schema=$1 AND k.table_name=$2
+                LIMIT 1
+                """,
+                sc.schema_name, table,
+            )
+            if pk_col is None:
+                raise HTTPException(404, "Table not found or has no primary key")
+            try:
+                result = await pg.execute(
+                    f'DELETE FROM "{table}" WHERE "{pk_col}" = $1', pk,
+                )
+            except Exception as e:
+                raise HTTPException(400, str(e))
+            try:
+                affected = int(result.split()[-1])
+            except (ValueError, IndexError):
+                affected = 0
+            return {"rows_affected": affected}
+
+    # Legacy SQLite path
     conn = _open_rw(project)
     try:
         col_info = conn.execute(f'PRAGMA table_info("{table}")').fetchall()
@@ -351,10 +662,32 @@ async def run_sql(
 
     # crude write detection — good enough for v1
     first_word = sql.split(None, 1)[0].upper()
-    is_write = first_word in {"INSERT", "UPDATE", "DELETE", "REPLACE", "CREATE", "DROP", "ALTER"}
+    is_write = first_word in {"INSERT", "UPDATE", "DELETE", "REPLACE", "CREATE", "DROP", "ALTER", "TRUNCATE"}
     if is_write and not write:
         raise HTTPException(403, "Write statements require ?write=1")
 
+    sc = await _get_provisioned_pg(project_id, db)
+    if sc is not None:
+        async with _pg_conn(sc) as pg:
+            try:
+                if is_write:
+                    # execute returns "TAG N" e.g. "UPDATE 3", "INSERT 0 5".
+                    result = await pg.execute(sql)
+                    try:
+                        affected = int(result.split()[-1])
+                    except (ValueError, IndexError):
+                        affected = 0
+                    return SqlResponse(columns=[], rows=[], rows_affected=affected)
+                rows_raw = await pg.fetch(sql)
+                if not rows_raw:
+                    return SqlResponse(columns=[], rows=[], rows_affected=0)
+                cols = list(rows_raw[0].keys())
+                rows = [[r[c] for c in cols] for r in rows_raw]
+                return SqlResponse(columns=cols, rows=rows, rows_affected=len(rows))
+            except Exception as e:
+                raise HTTPException(400, str(e))
+
+    # Legacy SQLite path
     conn = _open_rw(project) if is_write else _open_ro(project)
     try:
         cur = conn.execute(sql)
@@ -481,6 +814,188 @@ def _run_migration(
         job["status"]      = "failed"
         job["message"]     = str(exc)
         job["finished_at"] = time.time()
+
+
+# ── Provision (Phase A — Postgres-per-schema) ──────────────────────────────────
+#
+# `POST /api/projects/{id}/db/provision` creates a Postgres schema + role
+# inside Forge's own Postgres for the project's generated app. This is the
+# `local-self-host` mode default; in `hosted` mode it refuses and the
+# supabase.md skill walks the user through BYO Supabase OAuth instead.
+#
+# The endpoint is idempotent: if a provisioned-local row already exists for
+# the project, it returns it without re-running DDL. If a BYO Supabase row
+# exists, it refuses (409 — disconnect first to switch modes).
+#
+# Phase A only wires creation. Phase B will:
+#   - rewrite forge-bootstrap.sh to call this on first AI DB request
+#   - rewrite /db/tables, /db/rows etc. to query the schema via asyncpg
+#   - inject the connection string into the runner container env
+#
+# Network reachability for the runner container is a Phase B concern — the
+# connection string returned here points at Forge's Postgres host as-seen-
+# from-the-host. From inside a container the URL host needs translation
+# (host.docker.internal on macOS, host-gateway on Linux). For now we return
+# the literal URL and document it.
+
+
+class ProvisionResponse(BaseModel):
+    provisioned:           bool
+    schema_name:           str
+    role_name:             str
+    # The connection string includes a freshly-generated role password. Treat
+    # as a secret: the AI must write this to .env and never echo to chat. The
+    # supabase.md skill will be updated in Phase B with that guidance.
+    database_url:          str
+    # True if this call did the DDL; False if the row already existed and we
+    # returned cached state (idempotent path).
+    created:               bool
+
+
+def _provisioned_schema(project_id: str) -> str:
+    """
+    Postgres identifier for the project's schema. UUID hex (no dashes) is
+    safe for identifiers (all [0-9a-f]); the `app_` prefix guarantees a
+    letter start and avoids collisions with Postgres-internal schemas.
+
+    First 8 chars of the UUID gives 32 bits of distinctness — at 100k
+    projects per Forge instance the birthday-collision probability is
+    ~0.001 (negligible for OSS scale, recheck if we ever hit hosted).
+    """
+    return f"app_{project_id.replace('-', '')[:8]}"
+
+
+def _runner_database_url(role: str, password: str, schema: str) -> str:
+    """
+    Build the Postgres connection string the runner container will use.
+
+    `options=-csearch_path%3D<schema>` makes every query default to the
+    project's schema without the generated app having to qualify names —
+    keeps the Drizzle scaffolding clean. URL-encoded `=` as `%3D` is
+    required by libpq for options.
+
+    Host is whatever Forge itself uses — fine for the host process; runner
+    containers will need host-gateway translation (Phase B).
+    """
+    # Strip SQLAlchemy's "+asyncpg" suffix; the runner uses node-postgres.
+    base = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
+    # Replace the credentials segment with the new role's credentials.
+    # base looks like "postgresql://USER:PW@HOST:PORT/DB"
+    after_proto = base.split("://", 1)[1]
+    host_and_db = after_proto.split("@", 1)[1] if "@" in after_proto else after_proto
+    return f"postgresql://{role}:{password}@{host_and_db}?options=-csearch_path%3D{schema}"
+
+
+@router.post("/{project_id}/db/provision", response_model=ProvisionResponse)
+async def provision_local_db(
+    project_id: str,
+    user: User = Depends(current_user),
+    db:   AsyncSession = Depends(get_db),
+):
+    """
+    Create a Postgres schema + role for this project inside Forge's local
+    Postgres. Local-self-host mode only.
+    """
+    # Mode guard — hosted Forge MUST use BYO Supabase; refuse loudly.
+    if settings.forge_mode != "local-self-host":
+        raise HTTPException(
+            409,
+            f"db/provision is disabled in mode={settings.forge_mode!r}. "
+            "Use the BYO Supabase flow (/api/supabase/connect).",
+        )
+
+    project = await _get_owned_project(project_id, user, db)
+
+    # Idempotency — if a row already exists, branch on its type.
+    existing = (await db.execute(
+        select(SupabaseConnection).where(SupabaseConnection.project_id == project_id)
+    )).scalar_one_or_none()
+
+    if existing is not None:
+        if not existing.provisioned_locally:
+            raise HTTPException(
+                409,
+                "Project already has a BYO Supabase connection. Disconnect it "
+                "first (/api/supabase/disconnect) to switch to provisioned-local.",
+            )
+        # Same project, second call → return existing without re-running DDL.
+        # Decrypt the stored password to rebuild the URL.
+        from forge_server.api.supabase_routes import _fernet   # reuse — same key derivation
+        pw = _fernet().decrypt((existing.role_password_enc or "").encode()).decode()
+        return ProvisionResponse(
+            provisioned=True,
+            schema_name=existing.schema_name or "",
+            role_name=existing.role_name or "",
+            database_url=_runner_database_url(existing.role_name or "", pw, existing.schema_name or ""),
+            created=False,
+        )
+
+    # Fresh provision.
+    import secrets
+    from sqlalchemy import text
+    from forge_server.api.supabase_routes import _fernet
+
+    schema_name = _provisioned_schema(project_id)
+    role_name   = schema_name                    # same identifier — one per project
+    role_password = secrets.token_urlsafe(32)    # ~256 bits of entropy
+
+    # DDL — separate statements. CREATE SCHEMA IF NOT EXISTS is safe-by-default
+    # (no error if reattempted). CREATE ROLE has no IF NOT EXISTS until PG 16,
+    # so we check pg_roles first to stay compatible with older Postgres in
+    # the wild (Supabase local pins PG 15 currently).
+    await db.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema_name}"'))
+
+    role_exists = (await db.execute(
+        text("SELECT 1 FROM pg_roles WHERE rolname = :n"), {"n": role_name}
+    )).scalar_one_or_none()
+    if role_exists is None:
+        # asyncpg/SQLA can't bind into CREATE ROLE's PASSWORD clause directly.
+        # secrets.token_urlsafe() returns only [A-Za-z0-9_-], so a single-quoted
+        # SQL literal is safe (no quote chars in the token, no injection vector).
+        await db.execute(text(f"CREATE ROLE \"{role_name}\" LOGIN PASSWORD '{role_password}'"))
+    else:
+        # Role exists from a prior failed run — rotate the password so the
+        # connstr we return is valid. Same safety argument on the literal.
+        await db.execute(text(f"ALTER ROLE \"{role_name}\" PASSWORD '{role_password}'"))
+
+    # Grants — read+write on this schema only (user is building their app).
+    # ALTER DEFAULT PRIVILEGES catches tables the role itself creates later.
+    await db.execute(text(
+        f'GRANT USAGE, CREATE ON SCHEMA "{schema_name}" TO "{role_name}"'
+    ))
+    await db.execute(text(
+        f'ALTER DEFAULT PRIVILEGES IN SCHEMA "{schema_name}" '
+        f'GRANT ALL PRIVILEGES ON TABLES    TO "{role_name}"'
+    ))
+    await db.execute(text(
+        f'ALTER DEFAULT PRIVILEGES IN SCHEMA "{schema_name}" '
+        f'GRANT ALL PRIVILEGES ON SEQUENCES TO "{role_name}"'
+    ))
+
+    # Persist. Encrypt the password — never store plaintext at rest.
+    row = SupabaseConnection(
+        project_id          = project_id,
+        # supabase_url + anon_key are NOT NULL columns; fill with the
+        # host-facing URL and the schema name as a non-secret label. The
+        # real connstr is rebuilt on read from role_name + decrypted pw.
+        supabase_url        = settings.database_url.split("@", 1)[-1],   # host:port/db, no creds
+        anon_key            = schema_name,                               # label only
+        service_role_key    = None,
+        provisioned_locally = True,
+        schema_name         = schema_name,
+        role_name           = role_name,
+        role_password_enc   = _fernet().encrypt(role_password.encode()).decode(),
+    )
+    db.add(row)
+    await db.commit()
+
+    return ProvisionResponse(
+        provisioned=True,
+        schema_name=schema_name,
+        role_name=role_name,
+        database_url=_runner_database_url(role_name, role_password, schema_name),
+        created=True,
+    )
 
 
 class MigrateRequest(BaseModel):

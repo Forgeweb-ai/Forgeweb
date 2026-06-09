@@ -40,10 +40,21 @@ _SIGNATURES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"drizzle-kit.*?error", re.IGNORECASE),                  "drizzle_error"),
     (re.compile(r"Please install latest version of drizzle-orm"),        "drizzle_version_mismatch"),
     (re.compile(r"TS\d{4}:\s*(.+)"),                                     "ts_compile_error"),
+    # JSON parse errors are tagged BEFORE the generic SyntaxError catch
+    # so e.g. "SyntaxError: Unexpected token '<', "<!DOCTYPE … is not
+    # valid JSON" gets the actionable `json_parse_error` signature (the
+    # agent can branch on it: "your fetch hit an HTML error page, not the
+    # route you expected — check the URL and the route exists") instead
+    # of the noisier `syntax_error`.
+    (re.compile(r"Unexpected token .+? is not valid JSON"),              "json_parse_error"),
+    (re.compile(r"SyntaxError.*?JSON(?:\.parse)?"),                      "json_parse_error"),
+    (re.compile(r"Console SyntaxError"),                                 "json_parse_error"),
     (re.compile(r"SyntaxError:\s*(.+)"),                                 "syntax_error"),
     (re.compile(r"UnhandledPromiseRejection"),                           "unhandled_rejection"),
     (re.compile(r"Error \[ERR_REQUIRE_ESM\]"),                           "esm_require_error"),
     (re.compile(r"Hydration failed because"),                            "hydration_mismatch"),
+    (re.compile(r"Maximum update depth exceeded|Too many re-renders"),   "react_render_loop"),
+    (re.compile(r"ChunkLoadError|Loading chunk \d+ failed"),             "chunk_load_error"),
     (re.compile(r"⨯\s+(.+)"),                                            "next_runtime_error"),
 ]
 

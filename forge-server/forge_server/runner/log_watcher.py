@@ -138,6 +138,16 @@ class _ProjectWatcher:
         self.recent: list[RuntimeError_] = []     # ring of last RING_SIZE errors
         self._last_emit: dict[tuple[str, str], float] = {}  # debounce state
         self._autofix: _AutoFixBudget | None = None
+        # First-attach replay: on the watcher's very first tail, replay the
+        # last N container log lines so we catch errors that fired DURING
+        # cold start (e.g. `pnpm install` failing on a hallucinated package,
+        # next build failures) before the live stream attached. On every
+        # subsequent reconnect we use tail=0 so we don't re-detect old
+        # errors that were already actioned. Without this, the watcher's
+        # 99th-percentile failure mode — "Forge couldn't find the error" —
+        # was: error happened pre-attach, never replayed, watcher only sees
+        # silence afterward.
+        self._first_attach = True
         # External stop signal — set ONLY by stop(). _tail_once must never
         # set this. Internal "tail ended naturally" is signalled by the
         # pump pushing None into the line queue.
@@ -198,13 +208,22 @@ class _ProjectWatcher:
         loop  = asyncio.get_running_loop()
         queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=1000)
 
+        # See self._first_attach comment in __init__ — first attach replays
+        # the cold-start window, subsequent reconnects don't.
+        replay_tail = 200 if self._first_attach else 0
+        self._first_attach = False
+
         def _pump_blocking() -> None:
             try:
                 client = _get_docker()
                 c = client.containers.get(self.container_name)
-                # follow=True → infinite stream; tail=0 → don't replay history.
+                # follow=True → infinite stream. tail=replay_tail: catches
+                # cold-start errors on first attach; 0 on reconnect so we
+                # don't re-fire already-fixed errors when the container
+                # restarts mid-session.
                 stream = c.logs(
-                    stream=True, follow=True, tail=0, stdout=True, stderr=True,
+                    stream=True, follow=True, tail=replay_tail,
+                    stdout=True, stderr=True,
                 )
                 for chunk in stream:
                     if self._external_stop.is_set():
@@ -395,14 +414,68 @@ _watchers: dict[str, _ProjectWatcher] = {}
 
 
 async def start_watcher(project_id: str, container_name: str) -> None:
-    """Idempotent. Safe to call from container_manager.ensure() unconditionally."""
-    w = _watchers.get(project_id)
-    if w and w.task and not w.task.done():
+    """Idempotent. Safe to call from container_manager.ensure() unconditionally.
+
+    If a prior watcher exists but its task has crashed (task.done()), we
+    replace it. This is the supervisor path — without it, a one-time crash
+    in `_run` leaves the project permanently blind to runtime errors with
+    no signal to anyone. Replacing on crash is the same shape as `_run`'s
+    own backoff loop, just at the registry layer.
+    """
+    existing = _watchers.get(project_id)
+    if existing and existing.task and not existing.task.done():
         return
+    if existing and existing.task and existing.task.done():
+        # Surface the prior crash before we replace the watcher — silent
+        # restarts hide bugs. exception() on a done task is non-blocking.
+        exc = None
+        try:
+            exc = existing.task.exception()
+        except (asyncio.CancelledError, asyncio.InvalidStateError):
+            pass
+        if exc is not None:
+            log.error(
+                "watcher: prior task for project %s crashed (%s); restarting",
+                project_id, exc,
+            )
     w = _ProjectWatcher(project_id, container_name)
     _watchers[project_id] = w
     await w.start()
     log.info("watcher: started for project %s (container %s)", project_id, container_name)
+
+
+async def supervisor_loop(interval_sec: float = 30.0) -> None:
+    """Background task that walks every registered watcher and restarts any
+    whose backing task has died. Spawned once at forge-server startup by
+    app.py. Without this, a watcher whose `_run` raised (and was therefore
+    never retried by the in-loop backoff) stays dead until the next
+    container.ensure() call — which may be hours away. Cheap: one iteration
+    every 30s, only checks task.done(), no docker calls.
+
+    Scale shape: O(active watchers) per tick, no per-container work unless
+    we detect a dead task. At 100k containers per host this is ~3k checks/s
+    spread over 30s = trivial.
+    """
+    while True:
+        try:
+            await asyncio.sleep(interval_sec)
+            dead: list[tuple[str, str]] = []
+            for pid, w in list(_watchers.items()):
+                if w.task is None or w.task.done():
+                    dead.append((pid, w.container_name))
+            for pid, name in dead:
+                log.warning("supervisor: watcher for %s is dead, restarting", pid)
+                try:
+                    # start_watcher handles the prior-crash logging + replace.
+                    await start_watcher(pid, name)
+                except Exception as e:
+                    log.error("supervisor: failed to restart watcher %s: %s", pid, e)
+        except asyncio.CancelledError:
+            return
+        except Exception as e:
+            # Never let the supervisor itself die — that would defeat its
+            # whole purpose. Log and continue.
+            log.error("supervisor: unexpected error: %s", e)
 
 
 async def stop_watcher(project_id: str) -> None:

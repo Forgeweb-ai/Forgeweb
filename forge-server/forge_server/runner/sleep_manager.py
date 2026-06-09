@@ -10,7 +10,7 @@ Logic:
       → docker stop the container
       → update DB status to 'sleeping'
 
-forge-ui-new sends a ping to /api/dev/ping every 2 minutes while the
+forge-ui sends a ping to /api/dev/ping every 2 minutes while the
 preview iframe is visible. When the user closes their session or tab,
 pings stop, and after 10 min the container sleeps automatically.
 """

@@ -6,15 +6,15 @@ Dev server lifecycle API + SSE status stream.
 Endpoints:
   POST /api/dev/ensure   — ensure container is running (create/wake)
   POST /api/dev/stop     — manually stop a container
-  POST /api/dev/ping     — keep-alive heartbeat from forge-ui-new
+  POST /api/dev/ping     — keep-alive heartbeat from forge-ui
   GET  /api/dev/status   — current container status (JSON)
   GET  /api/dev/logs     — last N log lines (JSON)
   GET  /api/dev/stream   — SSE stream of status events
 
-The SSE stream is how forge-ui-new knows when the container moves from
+The SSE stream is how forge-ui knows when the container moves from
 "starting" → "running" and can activate the preview iframe.
 
-forge-ui-new should:
+forge-ui should:
   1. On session open → POST /api/dev/ensure
   2. Subscribe to GET /api/dev/stream?project_id=...
   3. Show loading overlay on preview panel
@@ -67,7 +67,7 @@ async def _get_or_create_project(
 ) -> Project:
     """
     Fetch the project, or auto-create it if it doesn't exist yet.
-    This allows forge-ui-new to call /ensure with an opencode project ID
+    This allows forge-ui to call /ensure with an opencode project ID
     on first use without needing a separate project-creation step.
 
     Ownership semantics:
@@ -184,7 +184,7 @@ async def ensure(
     """
     Ensure the project's dev server container is running.
     Returns immediately with { status: "starting" | "running" }.
-    forge-ui-new subscribes to /api/dev/stream for the "running" event.
+    forge-ui subscribes to /api/dev/stream for the "running" event.
     """
     project = await _get_or_create_project(
         body.project_id, user, db,
@@ -303,7 +303,7 @@ async def ping(
     db:   AsyncSession = Depends(get_db),
 ):
     """
-    Keep-alive heartbeat. forge-ui-new sends this every 2 minutes
+    Keep-alive heartbeat. forge-ui sends this every 2 minutes
     while the preview iframe is visible. Prevents the sleep worker
     from stopping the container.
     """
@@ -389,7 +389,7 @@ async def stream(
     """
     Server-Sent Events stream for container status.
 
-    forge-ui-new subscribes here after calling /ensure.
+    forge-ui subscribes here after calling /ensure.
     Events: { status: "starting" | "creating" | "installing" | "running" | "crashed" | "sleeping" }
 
     The stream keeps the connection open until the client disconnects.

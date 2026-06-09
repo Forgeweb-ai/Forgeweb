@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7   # 7 days
 
+    # ── Internal service auth ────────────────────────────────────────────────
+    # Shared HMAC secret between forge-server's opencode_proxy and the opencode
+    # fork's forge-user middleware. Used to sign X-Forge-User-Id per request so
+    # opencode-side calls back into /api/internal/* can be trusted without
+    # passing a user JWT through the proxy chain. MUST be overridden in prod —
+    # see [[forge_storage_architecture]] for the secret-management plan.
+    forge_internal_secret: str = "change-me-in-production-internal"
+
     # ── OpenCode ─────────────────────────────────────────────────────────────
     opencode_url: str = "http://opencode:7777"
 
@@ -43,6 +51,13 @@ class Settings(BaseSettings):
     # Scheme for preview URLs. http in local (no TLS cert for lvh.me),
     # https in prod (real cert from ACME).
     preview_scheme: str = "http"
+    # Browser-facing forge-server base URL. The agent embeds AI-generated
+    # images as <img src="<this>/forge-img/{slot}.png"> in the user's app —
+    # because the preview iframe is served from *.preview.lvh.me (the
+    # project container, NOT forge-server), a relative `/forge-img/...`
+    # would 404 in-iframe. Must be reachable from the user's browser.
+    # Dev default = the forge-server listen address; prod must override.
+    forge_public_base_url: str = "http://127.0.0.1:8000"
 
     # ── Workspace paths ───────────────────────────────────────────────────────
     forge_data_root: str = "/forge-data"
@@ -75,6 +90,20 @@ class Settings(BaseSettings):
     supabase_oauth_client_secret: str = ""
     supabase_oauth_redirect_uri:  str = "http://localhost:8000/api/supabase/oauth/callback"
 
+    # ── Forge runtime mode ────────────────────────────────────────────────────
+    # Determines the DB strategy for generated user apps:
+    #   "local-self-host" — (default, OSS) generated apps use the same Postgres
+    #       Forge runs on, isolated per-project via schema (app_<project_id>) +
+    #       a per-project role with grants only on that schema. One DB instance
+    #       does both Forge metadata AND user-app data — no second Supabase to
+    #       run. This is the OSS / hobbyist experience.
+    #   "hosted" — (Forge SaaS only) BYO Supabase via OAuth, per user. Forge
+    #       never holds user-app data in hosted mode — see LAUNCH_PLAN §2/§6c
+    #       constraint to avoid becoming a multi-tenant data plane at scale.
+    # The `/api/projects/{id}/db/provision` endpoint refuses to run in hosted
+    # mode; the supabase.md skill branches on this flag.
+    forge_mode: str = "local-self-host"
+
     # ── Dev mode ──────────────────────────────────────────────────────────────
     # DEV_MODE=true is just a "running locally" flag — useful for future
     # log-level / debug-route hooks. It does NOT bypass auth or auto-create
@@ -86,9 +115,9 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
         # Ignore env vars that aren't declared above. .env is shared with
-        # other consumers (opencode reads ANTHROPIC_API_KEY from the same
-        # file), so forge-server must not crash on keys it doesn't recognize.
-        # Default in pydantic-settings v2 is "forbid", which broke startup.
+        # other consumers (Traefik, Docker, dev.sh), so forge-server must
+        # not crash on keys it doesn't recognize. Default in
+        # pydantic-settings v2 is "forbid", which broke startup.
         extra = "ignore"
 
 
