@@ -172,11 +172,15 @@ const STAMP_BLOCKS = `  // Turbopack config (Next 15+): TOP-LEVEL \`turbopack\` 
   // a bare \`{ loader }\` without \`options\` fails the RuleConfigItemOrShortcut
   // schema (which is the exact error users were hitting). We use the string
   // form because the loader takes no options.
+  //
+  // NO \`as\` key: \`as\` renames the matched module and is only for
+  // type-CHANGING transforms (e.g. svg -> js). For tsx -> tsx it is at
+  // best a no-op and has produced doubled-extension module names
+  // ("page.tsx.tsx" -> Module not found, dev server 500s) in the wild.
   turbopack: {
     rules: {
       "*.{jsx,tsx}": {
         loaders: [FORGE_SOURCE_STAMP],
-        as: "*.tsx",
       },
     },
   },
@@ -234,6 +238,10 @@ export default nextConfig
   const hasTurbopack    = /^\s*turbopack\s*:/m.test(cur)
   const hasOldTurbo     = /experimental\s*:[\s\S]*?turbo\s*:/.test(cur)
   const hasBrokenLoader = /loaders\s*:\s*\[\s*\{\s*loader\s*:\s*['"][^'"]+['"]\s*\}\s*\]/.test(cur)
+  // `as: "*.tsx"` in the rule renames matched modules and has produced
+  // doubled-extension failures ("page.tsx.tsx") — treat its presence as
+  // needs-patching so existing projects shed it on next container boot.
+  const hasAsTsx        = /as\s*:\s*['"]\*\.tsx['"]/.test(cur)
   // forge-source-stamp is mandatory too — without it, visual edits in the UI
   // can't map clicks back to source. Treat its absence the same as a missing
   // mandatory key so existing projects auto-upgrade on next container start.
@@ -243,7 +251,7 @@ export default nextConfig
   //   loader MISSING  → must NOT reference it (a dangling reference 500s
   //                     the whole dev server) but still needs origins.
   const settled = stampOk
-    ? (hasOrigins && hasTurbopack && hasStamp && !hasOldTurbo && !hasBrokenLoader)
+    ? (hasOrigins && hasTurbopack && hasStamp && !hasOldTurbo && !hasBrokenLoader && !hasAsTsx)
     : (hasOrigins && !hasStamp && !hasOldTurbo)
   if (settled) process.exit(0)
   const customKeys = (cur.match(/^\s*\w+\s*:/gm) || []).filter(
@@ -286,11 +294,13 @@ const nextConfig: NextConfig = {
   // source-stamp loader takes no options; the object form `{ loader }`
   // without a paired `options` field fails the RuleConfigItemOrShortcut
   // schema and breaks the dev server entirely.
+  // NO "as" key — "as" is only for type-changing transforms (svg -> js);
+  // for tsx -> tsx it renames modules and has produced doubled-extension
+  // failures ("page.tsx.tsx" -> dev server 500s).
   turbopack: {
     rules: {
       "*.{jsx,tsx}": {
         loaders: [FORGE_SOURCE_STAMP],
-        as: "*.tsx",
       },
     },
   },
