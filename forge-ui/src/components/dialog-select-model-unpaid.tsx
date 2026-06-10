@@ -89,8 +89,13 @@ export const DialogSelectModelUnpaid: Component<{ model?: ModelState }> = (props
           <div class="w-full flex flex-col items-start gap-4 px-1.5 pt-4 pb-4">
             <div class="px-2 text-14-medium text-text-base">{language.t("dialog.model.unpaid.addMore.title")}</div>
             <div class="w-full">
+              {/* Same list-scroll override as the free-models List above:
+                  without it this List stays its own scroll container
+                  (overflow-y:auto + overscroll-behavior:contain) that
+                  swallows wheel events, so the dialog body can't scroll
+                  and the provider rows overflow-clip at the bottom. */}
               <List
-                class="w-full px-0"
+                class="w-full px-0 [&_[data-slot=list-scroll]]:overflow-visible"
                 key={(p) => p.id}
                 items={providers.popular}
                 activeIcon="plus-small"
