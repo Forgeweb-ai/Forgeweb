@@ -28,6 +28,7 @@ import {
 } from "@/context/prompt"
 import { useLayout } from "@/context/layout"
 import { useSDK } from "@/context/sdk"
+import { takePendingAttachments } from "@/pages/session/handoff"
 import { useSync } from "@/context/sync"
 import { useComments } from "@/context/comments"
 import { Button } from "@opencode-ai/ui/button"
@@ -1159,9 +1160,33 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     }
     sessionStorage.setItem(key, "1")
 
-    // Pre-fill prompt
-    prompt.set([{ type: "text", content: text, start: 0, end: text.length }], text.length)
-    
+    // Pre-fill prompt. CAREFUL: prompt.set REPLACES the whole prompt state,
+    // so we must carry over any image parts already in the composer — the
+    // home → session attachment handoff (session.tsx onMount) appends them
+    // there. Dropping them here silently loses the user's attached images
+    // (the submit path reads images from prompt parts).
+    const carriedImages = prompt
+      .current()
+      .filter((part): part is ImageAttachmentPart => part.type === "image")
+    // Also drain any handoff entries not yet taken — covers the race where
+    // this effect fires before session.tsx's onMount drain. take() clears
+    // the store, so images are never duplicated between the two paths.
+    const lateImages: ImageAttachmentPart[] = takePendingAttachments(sdk.directory).map((p) => ({
+      type: "image",
+      id: uuid(),
+      filename: p.name,
+      mime: p.mime,
+      dataUrl: p.dataUrl,
+    }))
+    prompt.set(
+      [
+        { type: "text", content: text, start: 0, end: text.length },
+        ...carriedImages,
+        ...lateImages,
+      ],
+      text.length,
+    )
+
     // Select model if passed in search params
     const modelParam = searchParams.model
     if (modelParam) {
