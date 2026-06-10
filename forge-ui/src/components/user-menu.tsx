@@ -444,6 +444,13 @@ export const UserMenu: Component<Props> = (props) => {
               Reach us at <a href="mailto:help@forgeweb.ai">help@forgeweb.ai</a> and
               we'll get back to you as soon as we can.
             </p>
+            <p>
+              Or join our{" "}
+              <a href="https://discord.gg/anpsmJmn2" target="_blank" rel="noopener noreferrer">
+                Discord help channel
+              </a>{" "}
+              for faster answers from the team and community.
+            </p>
             <button type="button" class="forge-support-close" onClick={() => setSupportOpen(false)}>
               Close
             </button>
