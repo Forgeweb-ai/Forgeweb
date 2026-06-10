@@ -48,10 +48,14 @@ export const DialogSettings: Component = () => {
                       <Icon name="sliders" />
                       {language.t("settings.tab.general")}
                     </Tabs.Trigger>
+                    {/* Shortcuts tab disabled for now (commented out on request) —
+                        re-enable by uncommenting this trigger and the matching
+                        Tabs.Content below.
                     <Tabs.Trigger value="shortcuts">
                       <Icon name="keyboard" />
                       {language.t("settings.tab.shortcuts")}
                     </Tabs.Trigger>
+                    */}
                   </div>
                 </div>
 
@@ -93,9 +97,11 @@ export const DialogSettings: Component = () => {
         <Tabs.Content value="general" class="no-scrollbar">
           <SettingsGeneral />
         </Tabs.Content>
+        {/* Disabled with the Shortcuts trigger above.
         <Tabs.Content value="shortcuts" class="no-scrollbar">
           <SettingsKeybinds />
         </Tabs.Content>
+        */}
         <Tabs.Content value="providers" class="no-scrollbar">
           <SettingsProviders />
         </Tabs.Content>
