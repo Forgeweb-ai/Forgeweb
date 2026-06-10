@@ -204,16 +204,18 @@ async def register(body: RegisterIn, db: AsyncSession = Depends(get_db)):
         email                = body.email,
         username             = body.username,
         hashed_password      = _pwd.hash(body.password),
-        # Explicit — new accounts are unverified and need onboarding.
-        # FE will route them to /auth/verify-email next.
-        email_verified       = False,
+        # Email verification is disabled for now — new accounts are verified
+        # by default so users skip the /auth/verify-email screen. To re-enable
+        # the flow later, flip this back to False (FE routing + the
+        # verify-email page are still in place).
+        email_verified       = True,
         onboarding_completed = False,
     )
     db.add(user)
     await db.commit()
     await db.refresh(user)
 
-    log.info("Registered new user %s (%s) — pending verification", user.username, user.id)
+    log.info("Registered new user %s (%s)", user.username, user.id)
     return _token_out(user)
 
 
