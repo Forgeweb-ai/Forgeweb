@@ -165,26 +165,15 @@ if (!stampOk) {
   console.warn("[forge-bootstrap] WARN: to restore visual edits.")
 }
 
-const STAMP_BLOCKS = `  // Turbopack config (Next 15+): TOP-LEVEL \`turbopack\` key. The old
-  // \`experimental.turbo\` location is deprecated and produces a parse error
-  // under recent Turbopack versions. The \`loaders\` array must contain
-  // EITHER strings OR full \`{ loader, options }\` objects with BOTH fields;
-  // a bare \`{ loader }\` without \`options\` fails the RuleConfigItemOrShortcut
-  // schema (which is the exact error users were hitting). We use the string
-  // form because the loader takes no options.
-  //
-  // NO \`as\` key: \`as\` renames the matched module and is only for
-  // type-CHANGING transforms (e.g. svg -> js). For tsx -> tsx it is at
-  // best a no-op and has produced doubled-extension module names
-  // ("page.tsx.tsx" -> Module not found, dev server 500s) in the wild.
-  turbopack: {
-    rules: {
-      "*.{jsx,tsx}": {
-        loaders: [FORGE_SOURCE_STAMP],
-      },
-    },
-  },
-  webpack: (config: any, { dev }: { dev: boolean }) => {
+// NOTE: deliberately NO turbopack.rules entry for the stamp loader.
+// Wiring the loader through turbopack rules has produced doubled-extension
+// module names in runner containers ("./components/Hero.tsx.tsx — Module
+// not found", import-graph-wide, dev server hard-500) that we could not
+// reproduce outside the runner, while delivering no observed stamping under
+// turbopack either. Until that is understood upstream, the loader runs via
+// the webpack hook only (verified working); under `next dev --turbopack`
+// visual-edit stamping is degraded but previews never break.
+const STAMP_BLOCKS = `  webpack: (config: any, { dev }: { dev: boolean }) => {
     if (dev) {
       config.module.rules.push({
         test: /\\.(jsx|tsx)$/,
@@ -204,10 +193,10 @@ ${stampOk ? `
 // Stamps every JSX intrinsic with data-forge-source="path:line:col" in dev
 // only, so the Forge UI's Select tool can map clicks back to source.
 //
-// Wired in BOTH the webpack hook and turbopack.rules because Next 15's
-// default \`next dev\` runs turbopack, not webpack — leaving turbo out
-// silently no-ops the feature for most users. Wiring both costs ~0 (turbo
-// rules are dev-only by definition; webpack hook gates on \`dev\`).
+// Wired through the webpack hook ONLY — wiring it through turbopack.rules
+// has produced doubled-extension module failures ("Hero.tsx.tsx") in
+// runner containers. Under \`next dev --turbopack\` stamping is degraded,
+// but previews never break. Do not add a turbopack rule for this loader.
 const FORGE_SOURCE_STAMP = "/usr/local/lib/forge-source-stamp/loader.js"
 ` : ""}
 const nextConfig: NextConfig = {
@@ -231,27 +220,25 @@ export default nextConfig
                : "next.config.js"
   const cur = fs.readFileSync(target, "utf8")
   const hasOrigins   = /allowedDevOrigins\s*:/.test(cur)
-  // Forge-mandatory: top-level `turbopack:` (Next 15+). Old
-  // `experimental.turbo` placement triggers a Turbopack parse error.
-  // Treat absence (or presence of old placement / broken loader form) as
-  // needs-patching so existing projects get migrated on next container boot.
-  const hasTurbopack    = /^\s*turbopack\s*:/m.test(cur)
   const hasOldTurbo     = /experimental\s*:[\s\S]*?turbo\s*:/.test(cur)
-  const hasBrokenLoader = /loaders\s*:\s*\[\s*\{\s*loader\s*:\s*['"][^'"]+['"]\s*\}\s*\]/.test(cur)
-  // `as: "*.tsx"` in the rule renames matched modules and has produced
-  // doubled-extension failures ("page.tsx.tsx") — treat its presence as
-  // needs-patching so existing projects shed it on next container boot.
+  // The stamp loader must NOT be wired through turbopack rules — that path
+  // has produced import-graph-wide doubled-extension failures in runner
+  // containers ("./Hero.tsx.tsx — Module not found", dev server hard-500).
+  // Any turbopack rule referencing the loader is treated as needs-patching
+  // so existing projects shed it on next container boot.
+  const hasTurboStampRule = /turbopack\s*:[\s\S]*?forge-source-stamp/.test(cur)
+  // `as: "*.tsx"` renames matched modules — same failure family.
   const hasAsTsx        = /as\s*:\s*['"]\*\.tsx['"]/.test(cur)
-  // forge-source-stamp is mandatory too — without it, visual edits in the UI
-  // can't map clicks back to source. Treat its absence the same as a missing
-  // mandatory key so existing projects auto-upgrade on next container start.
+  // forge-source-stamp (webpack hook) is mandatory — without it, visual
+  // edits in the UI can't map clicks back to source. Treat its absence the
+  // same as a missing mandatory key so existing projects auto-upgrade.
   const hasStamp = /forge-source-stamp/.test(cur)
   // Config is already in the desired shape for this container?
-  //   loader present  → must reference it (plus all other mandatory keys)
-  //   loader MISSING  → must NOT reference it (a dangling reference 500s
-  //                     the whole dev server) but still needs origins.
+  //   loader present  → webpack hook must reference it, turbopack must NOT
+  //   loader MISSING  → must NOT reference it anywhere (dangling reference
+  //                     500s the whole dev server) but still needs origins.
   const settled = stampOk
-    ? (hasOrigins && hasTurbopack && hasStamp && !hasOldTurbo && !hasBrokenLoader && !hasAsTsx)
+    ? (hasOrigins && hasStamp && !hasOldTurbo && !hasTurboStampRule && !hasAsTsx)
     : (hasOrigins && !hasStamp && !hasOldTurbo)
   if (settled) process.exit(0)
   const customKeys = (cur.match(/^\s*\w+\s*:/gm) || []).filter(
@@ -288,22 +275,10 @@ const nextConfig: NextConfig = {
   // serverExternalPackages: ["pg"] — only needed if pg is bundled by Next.
   // Drizzle's node-postgres adapter resolves cleanly without it. Empty for now.
   //
-  // Turbopack config (Next 15+): TOP-LEVEL `turbopack` key (the old
-  // `experimental.turbo` placement triggers a parse error under recent
-  // Turbopack). The `loaders` array uses the string form because the
-  // source-stamp loader takes no options; the object form `{ loader }`
-  // without a paired `options` field fails the RuleConfigItemOrShortcut
-  // schema and breaks the dev server entirely.
-  // NO "as" key — "as" is only for type-changing transforms (svg -> js);
-  // for tsx -> tsx it renames modules and has produced doubled-extension
-  // failures ("page.tsx.tsx" -> dev server 500s).
-  turbopack: {
-    rules: {
-      "*.{jsx,tsx}": {
-        loaders: [FORGE_SOURCE_STAMP],
-      },
-    },
-  },
+  // Source-stamp loader is wired through the webpack hook ONLY. Do NOT add
+  // a turbopack rule for it — that path has produced doubled-extension
+  // module failures ("Hero.tsx.tsx — Module not found") that 500 the whole
+  // dev server.
   webpack: (config: any, { dev }: { dev: boolean }) => {
     if (dev) {
       config.module.rules.push({
