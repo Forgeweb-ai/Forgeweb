@@ -144,7 +144,8 @@ ENV BROWSER=none \
     HOST=0.0.0.0 \
     HOSTNAME=0.0.0.0 \
     NODE_ENV=development \
-    FORCE_COLOR=1 \
+    FORCE_COLOR=0 \
+    NO_COLOR=1 \
     PNPM_HOME=/root/.local/share/pnpm \
     PNPM_STORE_DIR=/forge-store
 

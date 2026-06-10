@@ -67,12 +67,26 @@ _NOISE: list[re.Pattern[str]] = [
 ]
 
 
+# ANSI/VT100 escape sequences (colors, cursor moves). Next dev, vite, npm
+# etc. emit colored output when FORCE_COLOR is set — the codes land in the
+# middle of the text our signature regexes match ("Module not found\x1b[39m:
+# Can't resolve \x1b[32m'./x'"), silently breaking EVERY signature. Strip
+# once at the matcher boundary so both the watcher and one-shot parses see
+# plain text. Also used by the /api/dev/logs endpoint for clean display.
+_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)")
+
+
+def strip_ansi(text: str) -> str:
+    return _ANSI_RE.sub("", text)
+
+
 def is_noise(line: str) -> bool:
     return any(p.search(line) for p in _NOISE)
 
 
 def match_line(line: str) -> LogError | None:
     """Single-line classification. Returns None for noise + unknown lines."""
+    line = strip_ansi(line)
     if is_noise(line):
         return None
     for pattern, sig in _SIGNATURES:

@@ -28,6 +28,7 @@ import docker.errors
 from docker.models.containers import Container
 
 from forge_server.config import get_settings
+from forge_server.runner.log_parser import strip_ansi
 
 settings = get_settings()
 log      = logging.getLogger("forge.container_manager")
@@ -564,7 +565,11 @@ def _sync_container_logs(name: str, tail: int = 100) -> str:
     if c is None:
         return ""
     try:
-        return c.logs(tail=tail, timestamps=False).decode("utf-8", errors="replace")
+        raw = c.logs(tail=tail, timestamps=False).decode("utf-8", errors="replace")
+        # Strip ANSI escape codes — every consumer (FE side panel, verify
+        # subagent, signature parser) renders/matches plain text; raw codes
+        # show up as "[31m500[39m" gibberish in the UI.
+        return strip_ansi(raw)
     except Exception:
         return ""
 
