@@ -114,8 +114,6 @@ Browser → forge-ui → forge-server → ┌─ opencode (the AI agent)
 
 When you send a chat message: forge-server forwards it to the opencode agent, the agent reads/writes files in your project folder, calls your chosen model via the audit-logging proxy, and streams the response back to the UI. Each project gets a live preview URL of its own; idle projects sleep automatically and wake when you visit them.
 
-For deeper detail — what each service does, how snapshots work, how the BYOK key path is wired — see the [landing page docs](https://forgeweb.ai#docs) (same content, prettier).
-
 ---
 
 ## Documentation

@@ -22,6 +22,7 @@ opencode  (https://github.com/sst/opencode)
 Runtime dependencies
 
   Python (forge-server):    see forge-server/requirements.txt
+  Python (forge-llm-proxy): see forge-llm-proxy/requirements.txt
   Node/Bun (forge-ui):      see forge-ui/package.json
                             and opencode/package.json
   Container images:         postgres:16-alpine, redis:7-alpine,
