@@ -224,7 +224,7 @@ export const SettingsImageModel: Component = () => {
                   setKeyRowOpen(isKeyRowOpen() ? null : m.id)
                   setKeyValue("")
                 }}
-                class="text-11-regular text-text-accent border border-text-accent rounded px-1.5 py-0.5 hover:bg-surface-accent-base"
+                class="text-11-regular text-text-base border border-border-base rounded-md px-2 py-1 transition-colors hover:bg-surface-hover-base"
               >
                 {isKeyRowOpen() ? "Cancel" : `+ Add ${m.required_key_provider} key`}
               </button>
