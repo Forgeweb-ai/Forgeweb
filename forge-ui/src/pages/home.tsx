@@ -1568,13 +1568,16 @@ function ForgeHome() {
   // ── Model selector ──────────────────────────────────────────────────────
   const models = useModels()
   const providers = useProviders()
-  const [selectedModelKey, setSelectedModelKey] = createSignal<ModelKey | undefined>(() => {
+  // NOTE: IIFE — createSignal takes a VALUE, not a lazy initializer. Passing
+  // the bare function stored the function itself as the signal value (and
+  // never restored the saved model). Also the source of a TS2345 error.
+  const [selectedModelKey, setSelectedModelKey] = createSignal<ModelKey | undefined>((() => {
     try {
       const saved = localStorage.getItem("forge_home_model_v2")
       if (saved) return JSON.parse(saved) as ModelKey
     } catch {}
     return undefined
-  })
+  })())
 
   // ── BE-backed primary model (single source of truth) ──────────────────────
   // The selected model lives in forge-server (user_settings.primary_model). The
