@@ -163,10 +163,14 @@ export function SessionComposerRegion(props: {
           Shows model · input / output / cache tokens · session running cost ·
           context window %. Reads opencode SDK metadata via getSessionContextMetrics.
           Hidden in `inline` placement (new-session screen has no message yet).
-        */}
+
+          DISABLED for now (commented out on request) — re-enable by
+          uncommenting; the component + row variant are untouched.
+
         <Show when={props.placement !== "inline"}>
           <SessionContextUsage variant="row" />
         </Show>
+        */}
 
         <Show when={props.state.questionRequest()} keyed>
           {(request) => (
