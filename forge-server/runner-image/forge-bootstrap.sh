@@ -150,32 +150,22 @@ fi
 if [ -f next.config.ts ] || [ -f next.config.js ] || [ -f next.config.mjs ]; then
   node - <<'EOF'
 const fs = require("fs")
-const CANONICAL = `import type { NextConfig } from "next"
+// Source-stamp loader — baked into the runner image. GUARD: only wire it
+// into the config when the file actually exists on disk. A config that
+// references a missing loader hard-500s EVERY page of the dev server
+// ("Cannot find module .../loader.js"), which is strictly worse than
+// degraded visual edits. Missing file = stale forge-runner image (built
+// before the loader was added); rebuild the image to restore visual edits.
+const STAMP_PATH = "/usr/local/lib/forge-source-stamp/loader.js"
+const stampOk = fs.existsSync(STAMP_PATH)
+if (!stampOk) {
+  console.warn("[forge-bootstrap] WARN: " + STAMP_PATH + " not found in this")
+  console.warn("[forge-bootstrap] WARN: container — writing next.config WITHOUT the source-stamp")
+  console.warn("[forge-bootstrap] WARN: loader (visual edits disabled). Rebuild forge-runner:latest")
+  console.warn("[forge-bootstrap] WARN: to restore visual edits.")
+}
 
-// Forge source-stamp loader (visual edits). Baked into the runner image at
-// /usr/local/lib/forge-source-stamp/loader.js — see runner-image/Dockerfile.
-// Stamps every JSX intrinsic with data-forge-source="path:line:col" in dev
-// only, so the Forge UI's Select tool can map clicks back to source.
-//
-// Wired in BOTH the webpack hook and experimental.turbo.rules because Next
-// 15's default \`next dev\` runs turbopack, not webpack — leaving turbo out
-// silently no-ops the feature for most users. Wiring both costs ~0 (turbo
-// rules are dev-only by definition; webpack hook gates on \`dev\`).
-const FORGE_SOURCE_STAMP = "/usr/local/lib/forge-source-stamp/loader.js"
-
-const nextConfig: NextConfig = {
-  devIndicators: false,
-  // Forge preview: <projectId>.preview.{lvh.me|forge.com}. Next 15+ rejects
-  // cross-origin dev requests (HMR ws, server actions, RSC) without this.
-  allowedDevOrigins: [
-    "*.preview.lvh.me",
-    "*.preview.forge.com",
-  ],
-  // Native modules must be externalized or the route module fails to load
-  // and /api/* requests hang in dev. Add any other native deps you use.
-  // serverExternalPackages: ["pg"] — only needed if pg is bundled by Next.
-  // Drizzle's node-postgres adapter resolves cleanly without it. Empty for now.
-  // Turbopack config (Next 15+): TOP-LEVEL \`turbopack\` key. The old
+const STAMP_BLOCKS = `  // Turbopack config (Next 15+): TOP-LEVEL \`turbopack\` key. The old
   // \`experimental.turbo\` location is deprecated and produces a parse error
   // under recent Turbopack versions. The \`loaders\` array must contain
   // EITHER strings OR full \`{ loader, options }\` objects with BOTH fields;
@@ -201,7 +191,34 @@ const nextConfig: NextConfig = {
     }
     return config
   },
-}
+`
+
+const CANONICAL = `import type { NextConfig } from "next"
+${stampOk ? `
+// Forge source-stamp loader (visual edits). Baked into the runner image at
+// /usr/local/lib/forge-source-stamp/loader.js — see runner-image/Dockerfile.
+// Stamps every JSX intrinsic with data-forge-source="path:line:col" in dev
+// only, so the Forge UI's Select tool can map clicks back to source.
+//
+// Wired in BOTH the webpack hook and turbopack.rules because Next 15's
+// default \`next dev\` runs turbopack, not webpack — leaving turbo out
+// silently no-ops the feature for most users. Wiring both costs ~0 (turbo
+// rules are dev-only by definition; webpack hook gates on \`dev\`).
+const FORGE_SOURCE_STAMP = "/usr/local/lib/forge-source-stamp/loader.js"
+` : ""}
+const nextConfig: NextConfig = {
+  devIndicators: false,
+  // Forge preview: <projectId>.preview.{lvh.me|forge.com}. Next 15+ rejects
+  // cross-origin dev requests (HMR ws, server actions, RSC) without this.
+  allowedDevOrigins: [
+    "*.preview.lvh.me",
+    "*.preview.forge.com",
+  ],
+  // Native modules must be externalized or the route module fails to load
+  // and /api/* requests hang in dev. Add any other native deps you use.
+  // serverExternalPackages: ["pg"] — only needed if pg is bundled by Next.
+  // Drizzle's node-postgres adapter resolves cleanly without it. Empty for now.
+${stampOk ? STAMP_BLOCKS : ""}}
 
 export default nextConfig
 `
@@ -221,13 +238,20 @@ export default nextConfig
   // can't map clicks back to source. Treat its absence the same as a missing
   // mandatory key so existing projects auto-upgrade on next container start.
   const hasStamp = /forge-source-stamp/.test(cur)
-  if (hasOrigins && hasTurbopack && hasStamp && !hasOldTurbo && !hasBrokenLoader) process.exit(0)
+  // Config is already in the desired shape for this container?
+  //   loader present  → must reference it (plus all other mandatory keys)
+  //   loader MISSING  → must NOT reference it (a dangling reference 500s
+  //                     the whole dev server) but still needs origins.
+  const settled = stampOk
+    ? (hasOrigins && hasTurbopack && hasStamp && !hasOldTurbo && !hasBrokenLoader)
+    : (hasOrigins && !hasStamp && !hasOldTurbo)
+  if (settled) process.exit(0)
   const customKeys = (cur.match(/^\s*\w+\s*:/gm) || []).filter(
     k => !/^(devIndicators|allowedDevOrigins|serverExternalPackages|turbopack|experimental|webpack)\s*:/.test(k.trim())
   )
   if (customKeys.length === 0 && target === "next.config.ts") {
     fs.writeFileSync(target, CANONICAL)
-    console.log("[forge-bootstrap] next.config.ts patched with mandatory keys (incl. source-stamp)")
+    console.log("[forge-bootstrap] next.config.ts patched with mandatory keys" + (stampOk ? " (incl. source-stamp)" : " (source-stamp SKIPPED — loader missing)"))
   } else {
     console.warn("[forge-bootstrap] WARN: next.config has custom keys; cannot")
     console.warn("[forge-bootstrap] WARN: auto-patch. Add allowedDevOrigins,")
@@ -236,6 +260,10 @@ export default nextConfig
   }
 EOF
 elif is_next_project; then
+  # Same guard as the patch path above: never reference the source-stamp
+  # loader unless it actually exists in this container (stale forge-runner
+  # image) — a dangling loader path 500s every page of the dev server.
+  if [ -f /usr/local/lib/forge-source-stamp/loader.js ]; then
 cat > next.config.ts <<'EOF'
 import type { NextConfig } from "next"
 
@@ -281,7 +309,24 @@ const nextConfig: NextConfig = {
 
 export default nextConfig
 EOF
-  echo "[forge-bootstrap] next.config.ts created with mandatory keys (incl. source-stamp)"
+    echo "[forge-bootstrap] next.config.ts created with mandatory keys (incl. source-stamp)"
+  else
+cat > next.config.ts <<'EOF'
+import type { NextConfig } from "next"
+
+const nextConfig: NextConfig = {
+  devIndicators: false,
+  allowedDevOrigins: [
+    "*.preview.lvh.me",
+    "*.preview.forge.com",
+  ],
+}
+
+export default nextConfig
+EOF
+    echo "[forge-bootstrap] WARN: source-stamp loader missing in this container (stale forge-runner image?)"
+    echo "[forge-bootstrap] next.config.ts created WITHOUT source-stamp (visual edits disabled)"
+  fi
 fi
 
 # ── 4. instrumentation-client.ts (always for Next projects) ──────────────────
