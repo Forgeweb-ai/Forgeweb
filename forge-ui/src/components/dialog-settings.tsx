@@ -71,7 +71,7 @@ export const DialogSettings: Component = () => {
                       Design Agent
                     </Tabs.Trigger>
                     <Tabs.Trigger value="image-model">
-                      <Icon name="image" />
+                      <Icon name="photo" />
                       Image AI
                     </Tabs.Trigger>
                   </div>

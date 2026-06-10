@@ -9,12 +9,10 @@
  *   │       you@example.com      │
  *   └────────────────────────────┘
  *
- * Click opens the popover which mirrors the reference design:
- *   Profile · Settings · Appearance ▸ · Support ▸ · Documentation ▸ ·
- *   Community · Home · ─── · Sign out
+ * Click opens the popover:
+ *   Profile · Settings · Support · Home · ─── · Sign out
  *
- * Appearance opens a nested light/dark/system picker that drives
- * useTheme().setColorScheme — same hook the Settings → General tab uses.
+ * Support opens a small modal with the contact email (help@forgeweb.ai).
  *
  * The menu is self-positioning relative to its anchor and closes on:
  *   - outside click
@@ -31,17 +29,13 @@
 
 import { type Component, createSignal, onCleanup, onMount, Show, JSX } from "solid-js"
 import { useNavigate } from "@solidjs/router"
-import { useTheme, type ColorScheme } from "@opencode-ai/ui/theme/context"
 import { type CurrentUser, logout, userInitials } from "@/context/forge-api"
 
 type Props = {
   user:           CurrentUser | null
   onOpenSettings: () => void
   /** Optional handlers; if omitted, sensible defaults are used. */
-  onOpenProfile?:       () => void
-  onOpenSupport?:       () => void
-  onOpenDocumentation?: () => void
-  onOpenCommunity?:     () => void
+  onOpenProfile?: () => void
 }
 
 const STYLES = `
@@ -197,42 +191,54 @@ const STYLES = `
   .forge-user-item.danger { color: #c62828; }
   .forge-user-item.danger svg.icon { color: #c62828; }
 
-  /* ── Submenu (Appearance) ───────────────────────────────────────── */
-  .forge-user-submenu {
-    position: absolute;
-    left: calc(100% + 8px);
-    top: 0;
-    min-width: 180px;
+  /* ── Support modal ──────────────────────────────────────────────── */
+  .forge-support-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(21,20,15,0.35);
+    z-index: 100;
+    display: grid;
+    place-items: center;
+  }
+  .forge-support-modal {
+    width: min(380px, calc(100vw - 32px));
     background: #fff;
     border: 1px solid var(--line, #e6dfd0);
-    border-radius: 12px;
-    padding: 6px;
+    border-radius: 14px;
+    padding: 22px;
     box-shadow:
       0 1px 2px rgba(40,30,15,.04),
-      0 18px 36px -14px rgba(40,30,15,.2);
+      0 22px 50px -16px rgba(40,30,15,.22);
+    font-family: 'Geist', system-ui, sans-serif;
+    color: var(--ink, #15140f);
   }
-  /* If we'd overflow the right edge, flip to the left side. */
-  .forge-user-submenu.flip-left {
-    left: auto;
-    right: calc(100% + 8px);
+  .forge-support-modal h2 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    font-weight: 700;
   }
-  .forge-user-submenu .forge-user-item.active {
-    background: rgba(21,20,15,0.06);
+  .forge-support-modal p {
+    margin: 0 0 14px;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--muted-2, #6b6358);
+  }
+  .forge-support-modal a {
+    color: var(--ink, #15140f);
     font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
-  .forge-user-submenu .forge-user-item.active svg.icon { color: var(--ink, #15140f); }
-
-  /* On narrow viewports the submenu would hang off the side — stack it
-     below the parent item instead. */
-  @media (max-width: 480px) {
-    .forge-user-submenu {
-      position: static;
-      margin: 4px 0 0 28px;
-      box-shadow: none;
-      border-color: transparent;
-      padding: 2px 0;
-      min-width: 0;
-    }
+  .forge-support-close {
+    width: 100%;
+    margin-top: 4px;
+    background: var(--ink, #15140f);
+    color: #fff;
+    border: 0;
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-size: 13.5px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
   }
 
   /* ── Dark mode ─────────────────────────────────────────────────────
@@ -257,15 +263,22 @@ const STYLES = `
   [data-color-scheme="dark"] .forge-user-item:focus-visible {
     background: rgba(255,255,255,0.06);
   }
-  [data-color-scheme="dark"] .forge-user-submenu {
+  [data-color-scheme="dark"] .forge-support-modal {
     background: var(--surface, #232026);
     border-color: var(--hair, #2c2920);
     box-shadow:
       0 1px 2px rgba(0,0,0,0.5),
-      0 18px 36px -14px rgba(0,0,0,0.55);
+      0 22px 50px -16px rgba(0,0,0,0.6);
   }
-  [data-color-scheme="dark"] .forge-user-submenu .forge-user-item.active {
-    background: rgba(255,255,255,0.10);
+  [data-color-scheme="dark"] .forge-support-overlay {
+    background: rgba(0,0,0,0.5);
+  }
+  [data-color-scheme="dark"] .forge-support-modal a {
+    color: var(--ink, #f5efe0);
+  }
+  [data-color-scheme="dark"] .forge-support-close {
+    background: var(--ink, #f5efe0);
+    color: #15140f;
   }
   /* Danger (sign out) is hand-coded red — make sure it stays legible on dark
      bg too; the default #c62828 is fine but bump on hover for affordance. */
@@ -286,16 +299,14 @@ const STYLES = `
 
 export const UserMenu: Component<Props> = (props) => {
   const navigate = useNavigate()
-  const theme    = useTheme()
 
   const [open, setOpen]               = createSignal(false)
-  const [submenu, setSubmenu]         = createSignal<null | "appearance">(null)
+  const [supportOpen, setSupportOpen] = createSignal(false)
   let anchorRef:  HTMLButtonElement | undefined
   let popRef:     HTMLDivElement   | undefined
 
   function close() {
     setOpen(false)
-    setSubmenu(null)
   }
 
   // ── Outside-click + Escape ───────────────────────────────────────────────
@@ -307,7 +318,13 @@ export const UserMenu: Component<Props> = (props) => {
     close()
   }
   function onKey(e: KeyboardEvent) {
-    if (e.key === "Escape" && open()) {
+    if (e.key !== "Escape") return
+    if (supportOpen()) {
+      e.stopPropagation()
+      setSupportOpen(false)
+      return
+    }
+    if (open()) {
       e.stopPropagation()
       close()
       anchorRef?.focus()
@@ -340,24 +357,9 @@ export const UserMenu: Component<Props> = (props) => {
     close()
     props.onOpenSettings()
   }
-  function handleAppearance(scheme: ColorScheme) {
-    theme.setColorScheme(scheme)
-    close()
-  }
   function handleSupport() {
     close()
-    if (props.onOpenSupport) props.onOpenSupport()
-    else window.open("https://forge.dev/support", "_blank", "noopener,noreferrer")
-  }
-  function handleDocs() {
-    close()
-    if (props.onOpenDocumentation) props.onOpenDocumentation()
-    else window.open("https://forge.dev/docs", "_blank", "noopener,noreferrer")
-  }
-  function handleCommunity() {
-    close()
-    if (props.onOpenCommunity) props.onOpenCommunity()
-    else window.open("https://forge.dev/community", "_blank", "noopener,noreferrer")
+    setSupportOpen(true)
   }
   function handleHome() {
     close()
@@ -397,7 +399,6 @@ export const UserMenu: Component<Props> = (props) => {
           class="forge-user-pop"
           role="menu"
           ref={(el) => (popRef = el)}
-          onMouseLeave={() => setSubmenu(null)}
         >
           {/* Head — full identity */}
           <div class="forge-user-pop-head">
@@ -412,44 +413,8 @@ export const UserMenu: Component<Props> = (props) => {
           <div class="forge-user-pop-section">
             <MenuButton icon={<UserIcon />}  label="Profile"  onClick={handleProfile} />
             <MenuButton icon={<GearIcon />}  label="Settings" meta="⌘." onClick={handleSettings} />
-
-            {/* Appearance: hover/click to open submenu */}
-            <div style={{ position: "relative" }}>
-              <MenuButton
-                icon={<ContrastIcon />}
-                label="Appearance"
-                chev
-                onClick={() => setSubmenu(submenu() === "appearance" ? null : "appearance")}
-                onMouseEnter={() => setSubmenu("appearance")}
-              />
-              <Show when={submenu() === "appearance"}>
-                <div class="forge-user-submenu" role="menu">
-                  <MenuButton
-                    icon={<SunIcon />}
-                    label="Light"
-                    active={theme.colorScheme() === "light"}
-                    onClick={() => handleAppearance("light")}
-                  />
-                  <MenuButton
-                    icon={<MoonIcon />}
-                    label="Dark"
-                    active={theme.colorScheme() === "dark"}
-                    onClick={() => handleAppearance("dark")}
-                  />
-                  <MenuButton
-                    icon={<MonitorIcon />}
-                    label="System"
-                    active={theme.colorScheme() === "system"}
-                    onClick={() => handleAppearance("system")}
-                  />
-                </div>
-              </Show>
-            </div>
-
-            <MenuButton icon={<HelpIcon />}  label="Support"       chev onClick={handleSupport} />
-            <MenuButton icon={<BookIcon />}  label="Documentation" chev onClick={handleDocs} />
-            <MenuButton icon={<UsersIcon />} label="Community"          onClick={handleCommunity} />
-            <MenuButton icon={<HomeIcon />}  label="Home"               onClick={handleHome} />
+            <MenuButton icon={<HelpIcon />}  label="Support"  onClick={handleSupport} />
+            <MenuButton icon={<HomeIcon />}  label="Home"     onClick={handleHome} />
           </div>
 
           <hr />
@@ -462,6 +427,26 @@ export const UserMenu: Component<Props> = (props) => {
               danger
               onClick={handleSignOut}
             />
+          </div>
+        </div>
+      </Show>
+
+      {/* Support modal */}
+      <Show when={supportOpen()}>
+        <div
+          class="forge-support-overlay"
+          onClick={(e) => { if (e.target === e.currentTarget) setSupportOpen(false) }}
+        >
+          <div class="forge-support-modal" role="dialog" aria-modal="true" aria-label="Support">
+            <h2>Support</h2>
+            <p>
+              Questions, bug reports, or feedback — we'd love to hear from you.
+              Reach us at <a href="mailto:help@forgeweb.ai">help@forgeweb.ai</a> and
+              we'll get back to you as soon as we can.
+            </p>
+            <button type="button" class="forge-support-close" onClick={() => setSupportOpen(false)}>
+              Close
+            </button>
           </div>
         </div>
       </Show>
@@ -527,12 +512,6 @@ function GearIcon()    {
     </svg>
   )
 }
-function ContrastIcon(){ return <svg {...baseProps()}><circle cx="12" cy="12" r="9" /><path d="M12 3v18" fill="currentColor" stroke="none" /><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor" stroke="none" /></svg> }
 function HelpIcon()    { return <svg {...baseProps()}><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 1 1 4.3 1.7c-.7.7-1.8 1.1-1.8 2.3" /><circle cx="12" cy="17" r=".7" fill="currentColor" stroke="none" /></svg> }
-function BookIcon()    { return <svg {...baseProps()}><path d="M4 4h12a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3V4z" /><path d="M4 17h15" /></svg> }
-function UsersIcon()   { return <svg {...baseProps()}><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9.5" cy="7" r="3.5" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg> }
 function HomeIcon()    { return <svg {...baseProps()}><path d="M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2v-9z" /></svg> }
 function LogoutIcon()  { return <svg {...baseProps()}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" /></svg> }
-function SunIcon()     { return <svg {...baseProps()}><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.4 1.4M17.66 17.66l1.4 1.4M2 12h2M20 12h2M4.93 19.07l1.4-1.4M17.66 6.34l1.4-1.4" /></svg> }
-function MoonIcon()    { return <svg {...baseProps()}><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg> }
-function MonitorIcon() { return <svg {...baseProps()}><rect x="3" y="4" width="18" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg> }
