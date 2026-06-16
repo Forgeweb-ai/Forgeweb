@@ -85,7 +85,7 @@ SECRETS_AUDIT.local.md
 # forge-server smoke artifacts
 forge-server/*.png
 
-# Landing site — deployed separately to forgeweb.ai, not shipped in the OSS repo
+# Landing site — deployed separately, not shipped in the OSS repo
 /landing/
 
 # Backup files from in-place sed edits
@@ -110,3 +110,9 @@ CLAUDE.md
 
 # forge-qa run output — local artifacts, never commit
 /forge-qa/results/
+
+# Supabase CLI local state + Studio scratch — regenerated locally, never commit.
+# supabase/config.toml stays tracked (it's the real project config).
+/supabase/.branches/
+/supabase/.temp/
+/supabase/snippets/

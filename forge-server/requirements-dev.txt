@@ -16,7 +16,7 @@ alembic==1.14.0
 # Auth
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-bcrypt==3.2.2          # passlib 1.7.4 is incompatible with bcrypt >= 4.0
+bcrypt==4.0.1          # MUST match requirements.txt. 4.0.1 is the last bcrypt compatible with passlib 1.7.4's probe (4.1+ breaks); CI installs both files together, so a different pin here = ResolutionImpossible.
 python-multipart==0.0.17
 
 # Redis (used by sleep_manager — optional for dev, fails gracefully)

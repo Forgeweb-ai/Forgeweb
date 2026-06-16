@@ -1,8 +1,6 @@
 # CODEOWNERS — every PR needs an approval from a code owner before merge
 # (enforced by the protect-main ruleset's "Require review from Code Owners").
-#
-# Replace the placeholders below with real GitHub usernames (@username) or
-# an org team (@Forgeweb-ai/maintainers). Last matching rule wins.
+# Owner is the @Forgeweb-ai/maintainers team (has write access). Last matching rule wins.
 
 # Default: everything requires a maintainer review.
 * @Forgeweb-ai/maintainers
