@@ -56,7 +56,7 @@ Forgeweb/
 └── docker-compose.yml        # Source-build compose
 ```
 
-**Rule of thumb on `opencode/`.** It's a vendored fork of [sst/opencode](https://github.com/sst/opencode), kept as close to upstream as possible. If your change is something upstream would accept (a generic bug fix, a provider addition, an SDK update), **file it upstream first** — that benefits the wider opencode community and means we can drop our patch when upstream merges. If your change is Forge-specific (BYOK middleware, our skill catalog, the design-pool, the verify subagent), it lives in our fork.
+**`opencode/` is frozen — don't modify it.** It's a vendored fork of [sst/opencode](https://github.com/sst/opencode), and Forge is tightly bound to this exact revision: the BYOK middleware, the skill catalog, the design-pool, and the verify subagent all depend on its current internals. **We are not accepting changes to `opencode/` for now — PRs that touch it will be closed.** If you've hit a bug that lives inside the agent runtime, open an issue describing it and we'll handle the fork bump on our side. Anything Forge-specific you'd want to change lives *outside* `opencode/` anyway — see the table below.
 
 ---
 
@@ -67,7 +67,7 @@ Forgeweb/
 | The chat UI, settings dialogs, file tree, preview tabs | `forge-ui/` |
 | API endpoints, BYOK encryption, image-job worker, sleep manager | `forge-server/` |
 | The skill the agent reads when picking colors / building auth / etc. | `forge-opencode-config/` (or `forge-server/forge_server/skills/` for skills mounted into the agent container) |
-| A new LLM provider, an SDK update, a generic agent improvement | `opencode/` — but file upstream first |
+| A change inside the agent runtime (new LLM provider, SDK bump, generic agent fix) | Nothing — `opencode/` is **frozen** right now. Open an issue, don't PR it. |
 | A new image model | Provider registry in `forge-server/forge_server/imagegen/providers.py` + (optional) custom catalog entry |
 | Landing-page copy / screenshots | `landing/` |
 
@@ -110,7 +110,7 @@ The Docker path uses plain Postgres (no Supabase Storage), so snapshot worker no
 
 Forge platform code is [Business Source License 1.1](LICENSE) (converting to Apache 2.0 four years after each release). Contributions to platform code are accepted under BSL 1.1.
 
-The vendored `opencode/` subtree stays MIT (upstream's license). Contributions to `opencode/` are accepted under MIT, and we strongly prefer they go upstream first.
+The vendored `opencode/` subtree stays MIT (upstream's license), but it is **frozen** — we are not accepting contributions to it for now, since it's tightly bound to Forge's internals (see [How the repo is laid out](#how-the-repo-is-laid-out)).
 
 By submitting a PR you confirm you have the right to license the contribution under the relevant license.
 

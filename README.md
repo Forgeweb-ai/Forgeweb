@@ -8,7 +8,7 @@
 
 Forge is the open-source, self-hosted alternative to [Lovable](https://lovable.dev) and [v0.dev](https://v0.dev). Describe the app you want, an AI agent ships the code, and you keep your API keys and your code on your own machine. There is no Forge SaaS, no token resale, no telemetry. The default model is free (DeepSeek V4 Flash via opencode zen) from opencode, so a fresh install works with zero API keys. Bring an Anthropic / OpenAI / Moonshot / Google / Replicate key from in-app Settings only if you want a paid model.
 
-[Live page → forgeweb.ai](https://forgeweb.ai) · [License: BSL 1.1](LICENSE) · Built on [opencode](https://github.com/sst/opencode) (MIT)
+[License: BSL 1.1](LICENSE) · Built on [opencode](https://github.com/sst/opencode) (MIT)
 
 ---
 
@@ -81,18 +81,11 @@ The Docker path uses plain Postgres for Forge's own metadata; the `install.sh` p
 
 ## Bring your own keys
 
-Forge doesn't resell tokens. You connect your own provider, you pay your own bill, you can cancel any time by removing the key.
+Model and key handling comes straight from opencode — you bring your own provider keys, pay your own bill, and cancel any time by removing a key. Forge doesn't resell tokens.
 
-| Provider | What it powers | Required? |
-|---|---|---|
-| **opencode zen** (default) | DeepSeek V4 Flash Free — chat + design out of the box | Default |
-| Anthropic | Claude Sonnet 4.6, Opus 4.6, Haiku 4.5 chat models | Optional |
-| OpenAI | GPT chat; gpt-image-1 for image gen | Optional |
-| Moonshot | Kimi K2 chat | Optional |
-| Google | Gemini chat + Imagen image gen | Optional |
-| Replicate | Flux, SDXL, other open-weight image models | Optional |
+A fresh install works out of the box on opencode zen's free default, with zero keys. Add your own Anthropic, OpenAI, Moonshot, Google, or Replicate key from in-app Settings only if you want a paid model or image generation.
 
-All paid keys go in via **Settings → API Keys** inside the app. Never in `.env`. Encrypted on disk; decrypted only on the provider request that needs them.
+All paid keys go in via **Settings → API Keys** inside the app — never in `.env`. They're encrypted on disk and decrypted only on the provider request that needs them.
 
 ### About Supabase
 
@@ -118,7 +111,6 @@ When you send a chat message: forge-server forwards it to the opencode agent, th
 
 ## Documentation
 
-- [forgeweb.ai](https://forgeweb.ai) — full user-facing docs, architecture diagram, FAQ-style deep-dives.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — repo layout, dev environment, PR conventions.
 - [`LICENSE`](LICENSE) — Business Source License 1.1.
 - [`NOTICE`](NOTICE) — third-party attribution (opencode MIT, dependencies).

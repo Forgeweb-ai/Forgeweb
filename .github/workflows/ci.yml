@@ -1,0 +1,68 @@
+# Forge CI — required status checks for the protect-main ruleset.
+# Keep jobs fast and deterministic: typecheck + syntax gates, no network
+# beyond dependency install. Add heavier suites (pytest, bun test) as
+# separate jobs later so a flaky test never blocks a docs-only PR longer
+# than needed.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  forge-ui-typecheck:
+    name: forge-ui typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      # forge-ui is a workspace of the opencode monorepo — install from there.
+      - name: Install deps
+        run: bun install --cwd opencode
+      - name: Typecheck
+        run: bun run typecheck
+        working-directory: forge-ui
+
+  forge-server-check:
+    name: forge-server syntax + tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: forge-server/requirements*.txt
+      - name: Compile check (no deps needed)
+        run: python -m compileall -q forge_server
+        working-directory: forge-server
+      - name: Install deps
+        run: pip install -r requirements.txt -r requirements-dev.txt
+        working-directory: forge-server
+      - name: Unit tests
+        run: python -m pytest tests -x -q
+        working-directory: forge-server
+
+  runner-image-shellcheck:
+    name: runner-image script syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: bash -n all runner scripts
+        run: |
+          set -e
+          for f in forge-server/runner-image/*.sh dev.sh install.sh; do
+            echo "checking $f"; bash -n "$f"
+          done
+      - name: node syntax check loader/visitor
+        run: |
+          node --check forge-server/runner-image/forge-source-stamp/loader.js
+          node --check forge-server/runner-image/forge-source-stamp/visitor.js
+          node --check forge-server/runner-image/forge-db-precheck.js

@@ -47,9 +47,14 @@ export function createSdkForServer({
   // localStorage is used per request — survives logout/login without a
   // refresh.
   const inForgeMode = !!(import.meta.env.VITE_API_URL as string | undefined)
-  const baseFetch = (config as { fetch?: typeof fetch }).fetch ?? fetch
-  const wrappedFetch: typeof fetch = inForgeMode
-    ? (input, init) => {
+  // Cast: Bun's global `fetch` type carries an extra `preconnect` member that
+  // a config-provided fetch won't have. We only ever CALL it, so the plain
+  // callable shape is all we rely on.
+  const baseFetch = ((config as { fetch?: typeof fetch }).fetch ?? fetch) as typeof fetch
+  // Cast (not annotation): Bun's `typeof fetch` requires a `preconnect`
+  // member our wrapper doesn't (and needn't) have — the SDK only CALLS it.
+  const wrappedFetch = (inForgeMode
+    ? (input: RequestInfo | URL, init?: RequestInit) => {
         const jwt = readForgeJwt()
         if (!jwt) return baseFetch(input, init)
 
@@ -72,7 +77,7 @@ export function createSdkForServer({
         if (!headers.has("Authorization")) headers.set("Authorization", `Bearer ${jwt}`)
         return baseFetch(input, { ...(init ?? {}), headers })
       }
-    : baseFetch
+    : baseFetch) as typeof fetch
 
   return createOpencodeClient({
     ...config,
