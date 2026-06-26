@@ -19,8 +19,13 @@ You need **Docker Desktop** (macOS / Windows) or **Docker Engine + Compose v2** 
 ```bash
 git clone https://github.com/Forgeweb-ai/Forgeweb.git
 cd Forgeweb
+echo "FORGE_DATA_ROOT_HOST=$(pwd)/forge-data" > .env   # creates the required .env AND pins the host data path
 docker compose up -d
 ```
+
+That one `echo` does two required things. It **creates `.env`** — compose declares `env_file: .env`, so a fresh clone won't start without the file (`Failed to load .env: no such file`). And it **pins `FORGE_DATA_ROOT_HOST`** to the absolute host path of `forge-data`. You need the explicit path: forge-server passes it to the Docker daemon to bind-mount each project's workspace into its preview container, and the daemon resolves that path on the host. The compose fallback (`${PWD}/forge-data`) breaks under `sudo` — `sudo` strips `$PWD`, so it resolves to a blank prefix (`/forge-data`, which doesn't exist on the host) and preview containers hang in `Created`. Capturing `$(pwd)` at install time avoids that whether or not you use `sudo`.
+
+Everything else has a safe default (`${VAR:-default}` throughout `docker-compose.yml`), so no other config is needed to boot. To customize secrets or domains later, see `.env.example` — but note it ships **production** domains (`app.forge.com`, `preview.forge.com`), so keep those out of a local `.env`.
 
 Then open <http://app.forge.localhost> and sign up. First boot builds 4 images (~10 minutes on a clean machine); subsequent boots are seconds.
 

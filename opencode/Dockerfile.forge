@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Forge build of the vendored opencode fork
 # ===========================================
 # Runs opencode from source under bun (the project's declared package
@@ -71,11 +72,21 @@ RUN sed -i '/minimumReleaseAge/d' bunfig.toml || true
 # /opencode/packages/opencode/node_modules/X and ENOENTs. Isolated places
 # deps at the per-workspace-member path the runtime actually uses.
 #
-# First pass with `|| true` populates bun's local cache despite the same
-# "Failed to install N packages" cascade. Second pass is strict — if it
-# still can't materialise the tree we fail the build with bun's own error.
-RUN bun install --no-save || true
-RUN bun install --no-save
+# First pass populates bun's local cache despite the same "Failed to install
+# N packages" cascade; the retry is strict — if it still can't materialise the
+# tree we fail the build with bun's own error.
+#
+# tmpfs cache mount (filesystem-agnostic install): bun's install + patch-apply
+# IO is sensitive to the underlying filesystem. On some Docker storage backends
+# (notably Synology NAS volumes) bun prints "Slow filesystem detected … network
+# drive" and then fails patch-apply with `EINVAL: Invalid argument (read())` on
+# every patchedDependency. bun's own remediation is to put its install cache on
+# a fast local folder — so we mount a RAM-backed tmpfs at the cache path for the
+# install step. The build then runs identically on a laptop, a cloud VM, or a
+# NAS with no host-side prep. Both passes share the one tmpfs RUN so the strict
+# retry reuses the warmed cache. (Needs the documented build RAM headroom.)
+RUN --mount=type=tmpfs,target=/root/.bun/install/cache \
+    bun install --no-save || bun install --no-save
 
 # Bun's isolated linker doesn't fully materialise every transitive dep into
 # per-workspace-member node_modules — registry deps often end up only at
