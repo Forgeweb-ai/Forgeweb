@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Forge UI — Vite/SolidJS chat interface.
 # ==========================================
 # Build context MUST be the repo root (not ./forge-ui), because forge-ui is a
@@ -65,7 +66,13 @@ RUN sed -i '/minimumReleaseAge/d' opencode/bunfig.toml || true
 # proceed; if any of those packages are actually needed, the build step
 # below will fail with a clear "Cannot find module" pointing at the real
 # culprit instead of bun's misleading summary.
-RUN cd opencode && bun install --no-save --linker=hoisted || true
+#
+# tmpfs cache mount: same fix as opencode/Dockerfile.forge — bun's patch-apply
+# fails with `EINVAL` on filesystems it flags as "slow/network" (e.g. NAS
+# volumes), so we give its install cache a RAM-backed tmpfs. Keeps the build
+# filesystem-agnostic on any host.
+RUN --mount=type=tmpfs,target=/root/.bun/install/cache \
+    cd opencode && bun install --no-save --linker=hoisted || true
 
 # Verify what's present so the log gives us a clear before/after for the
 # packages bun complained about.
