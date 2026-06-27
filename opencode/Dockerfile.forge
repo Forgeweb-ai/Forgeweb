@@ -17,17 +17,18 @@
 # that produces a single bundled file and ship that instead — same patch
 # code, smaller runtime.
 
-FROM oven/bun:1.3.14-alpine
+FROM oven/bun:1.3.14
 
 # Match the runtime tooling the upstream Dockerfile assumes plus python3
 # (the ui-ux-pro-max skill's reasoning engine needs it for the design-
 # system generator's scripts/search.py).
 #
-# build-base = gcc + g++ + make + libc-dev + binutils — required because
+# build-essential = gcc + g++ + make + libc6-dev — required because
 # tree-sitter-* packages ship native bindings compiled by node-gyp during
-# `bun install`. Without it the install fails with:
-#     gyp ERR! stack Error: not found: make
-RUN apk add --no-cache     build-base     python3 py3-pip     ripgrep libgcc libstdc++ git     curl jq
+# `bun install`.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential python3 python3-pip ripgrep git curl jq \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opencode
 
@@ -37,7 +38,7 @@ COPY package.json bun.lock bunfig.toml turbo.json tsconfig.json ./
 COPY packages ./packages
 # patches/ holds bun patchedDependencies referenced in package.json.
 # bun install reads them by the relative paths in patchedDependencies
-# (e.g. patches/@silvia-odwyer%2Fphoton-node@0.3.4.patch); missing files
+# (e.g. patches/@silvia-odwyer-photon-node@0.3.4.patch); missing files
 # fail the install. Copy them in BEFORE bun install.
 COPY patches ./patches
 
@@ -48,8 +49,7 @@ COPY patches ./patches
 #      (workspace:*) which we don't ship here, so bun install fails resolving
 #      that dep — even after stripping ../forge-ui from the root workspaces.
 # Strip both before install. Build-time only; source on disk is untouched.
-RUN apk add --no-cache jq \
- && jq '.workspaces.packages |= map(select(. != "../forge-ui"))' package.json > package.tmp.json \
+RUN jq '.workspaces.packages |= map(select(. != "../forge-ui"))' package.json > package.tmp.json \
  && mv package.tmp.json package.json \
  && rm -rf packages/desktop
 
