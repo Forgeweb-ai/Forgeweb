@@ -69,9 +69,8 @@ RUN cd opencode && for pkg in @ai-sdk/anthropic @smithy/eventstream-codec @shiki
 # Now copy forge-ui sources for the actual build step.
 COPY forge-ui ./forge-ui
 
-# Symlink opencode/node_modules into forge-ui and export bin path so vite and dependencies are found
+# Symlink opencode/node_modules into forge-ui so solid-js and all dependencies resolve
 RUN ln -s /build/opencode/node_modules /build/forge-ui/node_modules
-ENV PATH="/build/opencode/node_modules/.bin:${PATH}"
 
 # Vite reads VITE_* from the environment at BUILD time and inlines them into
 # the static bundle. Pass them as build args so docker compose can override
@@ -83,8 +82,8 @@ ENV VITE_API_URL=${VITE_API_URL} \
     VITE_PREVIEW_DOMAIN=${VITE_PREVIEW_DOMAIN} \
     VITE_OPENCODE_URL=${VITE_OPENCODE_URL}
 
-# Build. Vite reads index.html and ./src/, emits ./dist/.
-RUN cd forge-ui && bun run build
+# Build. Execute vite.js directly from node_modules so relative module imports resolve without symlink wrappers.
+RUN cd forge-ui && bun /build/opencode/node_modules/vite/bin/vite.js build
 
 # ── 2. Runtime ───────────────────────────────────────────────────────────────
 FROM nginx:1.27-alpine
