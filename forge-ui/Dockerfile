@@ -50,11 +50,11 @@ RUN --mount=type=tmpfs,target=/root/.bun/install/cache \
 
 # Apply patches explicitly using POSIX GNU patch
 RUN cd opencode \
- && patch -p1 -d node_modules/@ai-sdk/xai < patches/@ai-sdk-xai@3.0.82.patch \
- && patch -p1 -d node_modules/@npmcli/agent < patches/@npmcli-agent@4.0.0.patch \
- && patch -p1 -d node_modules/@silvia-odwyer/photon-node < patches/@silvia-odwyer-photon-node@0.3.4.patch \
- && patch -p1 -d node_modules/@standard-community/standard-openapi < patches/@standard-community-standard-openapi@0.2.9.patch \
- && patch -p1 -d node_modules/solid-js < patches/solid-js@1.9.10.patch
+ && patch -p1 -l -d node_modules/@ai-sdk/xai < patches/@ai-sdk-xai@3.0.82.patch \
+ && patch -p1 -l -d node_modules/@npmcli/agent < patches/@npmcli-agent@4.0.0.patch \
+ && patch -p1 -l -d node_modules/@silvia-odwyer/photon-node < patches/@silvia-odwyer-photon-node@0.3.4.patch \
+ && patch -p1 -l -d node_modules/@standard-community/standard-openapi < patches/@standard-community-standard-openapi@0.2.9.patch \
+ && patch -p1 -l -d node_modules/solid-js < patches/solid-js@1.9.10.patch
 
 # Verify what's present so the log gives us a clear before/after for the
 # packages bun complained about.
