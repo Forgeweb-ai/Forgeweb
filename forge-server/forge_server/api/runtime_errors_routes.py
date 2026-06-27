@@ -122,7 +122,8 @@ def _normalize_project_id(raw: str) -> str:
     if _UUID_RE.match(raw):
         return raw
     try:
-        decoded = base64.b64decode(raw, validate=False).decode("utf-8", errors="ignore")
+        padded = raw + "=" * (-len(raw) % 4)
+        decoded = base64.b64decode(padded, validate=False).decode("utf-8", errors="ignore")
     except Exception:
         # Fall through — the UUID lookup will produce the original 422/500
         # surface, which is still better than masking with a 404.

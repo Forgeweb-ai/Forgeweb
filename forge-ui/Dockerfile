@@ -21,15 +21,11 @@
 #   - Better default caching headers + gzip out of the box.
 
 # ── 1. Builder ───────────────────────────────────────────────────────────────
-FROM oven/bun:1.3.14-alpine AS builder
+FROM oven/bun:1.3.14 AS builder
 
 # Build deps: forge-ui shares the opencode workspace tree, which pulls tree-
 # sitter-* and other native modules compiled by node-gyp at install time.
-# `make g++` alone is not enough — node-gyp also needs libc-dev, binutils,
-# pkgconfig, etc. Alpine's `build-base` meta-package bundles all of them.
-# Without this, bun reports "Failed to install N packages" and a cascade of
-# FileNotFound errors that are symptoms, not causes.
-RUN apk add --no-cache build-base python3 git
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential python3 git && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 
@@ -45,11 +41,9 @@ COPY opencode/packages         ./opencode/packages
 COPY opencode/patches          ./opencode/patches
 COPY forge-ui/package.json     ./forge-ui/
 
-# Drop packages/desktop — its @forge/ui dep would resolve here (forge-ui is
-# in context), but desktop also depends on @lydell/node-pty + Electron native
-# bits we don't want in a static UI build. Same reasoning as in
-# opencode/Dockerfile.forge.
-RUN rm -rf opencode/packages/desktop
+# Drop unused workspace packages (desktop, console, storybook, docs, web) so
+# bun install only downloads dependencies actually needed for forge-ui.
+RUN rm -rf opencode/packages/desktop opencode/packages/console opencode/packages/storybook opencode/packages/docs opencode/packages/web
 
 # Strip bunfig.toml's minimumReleaseAge before install. See
 # opencode/Dockerfile.forge for the full reasoning: the 3-day supply-chain
@@ -76,10 +70,20 @@ RUN --mount=type=tmpfs,target=/root/.bun/install/cache \
 
 # Verify what's present so the log gives us a clear before/after for the
 # packages bun complained about.
-RUN cd opencode && for pkg in @ai-sdk/anthropic @smithy/eventstream-codec @shikijs/transformers minimatch; do      if [ -d "node_modules/$pkg" ]; then         echo "PRESENT  $pkg";       else         echo "MISSING  $pkg";       fi;     done
+RUN cd opencode && for pkg in @ai-sdk/anthropic @smithy/eventstream-codec @shikijs/transformers minimatch; do \
+    if [ -d "node_modules/$pkg" ]; then \
+        echo "PRESENT  $pkg"; \
+    else \
+        echo "MISSING  $pkg"; \
+    fi; \
+    done
 
 # Now copy forge-ui sources for the actual build step.
 COPY forge-ui ./forge-ui
+
+# Symlink opencode/node_modules into forge-ui and export bin path so vite and dependencies are found
+RUN ln -s /build/opencode/node_modules /build/forge-ui/node_modules
+ENV PATH="/build/opencode/node_modules/.bin:${PATH}"
 
 # Vite reads VITE_* from the environment at BUILD time and inlines them into
 # the static bundle. Pass them as build args so docker compose can override
@@ -87,7 +91,9 @@ COPY forge-ui ./forge-ui
 ARG VITE_API_URL=http://api.forge.localhost
 ARG VITE_PREVIEW_DOMAIN=preview.lvh.me
 ARG VITE_OPENCODE_URL=http://opencode:7777
-ENV VITE_API_URL=${VITE_API_URL}     VITE_PREVIEW_DOMAIN=${VITE_PREVIEW_DOMAIN}     VITE_OPENCODE_URL=${VITE_OPENCODE_URL}
+ENV VITE_API_URL=${VITE_API_URL} \
+    VITE_PREVIEW_DOMAIN=${VITE_PREVIEW_DOMAIN} \
+    VITE_OPENCODE_URL=${VITE_OPENCODE_URL}
 
 # Build. Vite reads index.html and ./src/, emits ./dist/.
 RUN cd forge-ui && bun run build
