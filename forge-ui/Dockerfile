@@ -25,7 +25,7 @@ FROM oven/bun:1.3.14 AS builder
 
 # Build deps: forge-ui shares the opencode workspace tree, which pulls tree-
 # sitter-* and other native modules compiled by node-gyp at install time.
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential python3 git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential python3 git jq patch && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 
@@ -34,39 +34,27 @@ WORKDIR /build
 # depends on workspace:* packages defined inside it.
 COPY opencode/package.json     opencode/bun.lock     opencode/bunfig.toml     opencode/turbo.json     opencode/tsconfig.json     ./opencode/
 COPY opencode/packages         ./opencode/packages
-# opencode/patches/ contains bun patchedDependencies referenced in
-# opencode/package.json (photon-node, npmcli/agent, standard-openapi, etc.).
-# bun install resolves them by relative path; missing => "Couldn't find patch
-# file" and the whole install aborts. Copy before the install step.
 COPY opencode/patches          ./opencode/patches
 COPY forge-ui/package.json     ./forge-ui/
 
-# Drop unused workspace packages (desktop, console, storybook, docs, web) so
-# bun install only downloads dependencies actually needed for forge-ui.
+# Drop unused workspace packages (desktop, console, storybook, docs, web) and strip patchedDependencies
 RUN rm -rf opencode/packages/desktop opencode/packages/console opencode/packages/storybook opencode/packages/docs opencode/packages/web
+RUN jq 'del(.patchedDependencies)' opencode/package.json > opencode/package.tmp.json && mv opencode/package.tmp.json opencode/package.json
 
-# Strip bunfig.toml's minimumReleaseAge before install. See
-# opencode/Dockerfile.forge for the full reasoning: the 3-day supply-chain
-# gate is invisible on the host (cached) but breaks fresh Docker builds for
-# every package that got a recent point release.
+# Strip bunfig.toml's minimumReleaseAge before install.
 RUN sed -i '/minimumReleaseAge/d' opencode/bunfig.toml || true
 
-# Install workspace deps from the opencode root. --linker=hoisted matches
-# the user's host layout (npm-style flat node_modules).
-#
-# DIAGNOSTIC: same exit-code-suppression as opencode/Dockerfile.forge.
-# Bun reports "Failed to install N packages" with FileNotFound errors for a
-# specific subset of transitive deps. Suppressing here lets the Vite build
-# proceed; if any of those packages are actually needed, the build step
-# below will fail with a clear "Cannot find module" pointing at the real
-# culprit instead of bun's misleading summary.
-#
-# tmpfs cache mount: same fix as opencode/Dockerfile.forge — bun's patch-apply
-# fails with `EINVAL` on filesystems it flags as "slow/network" (e.g. NAS
-# volumes), so we give its install cache a RAM-backed tmpfs. Keeps the build
-# filesystem-agnostic on any host.
+# Install workspace deps cleanly without bun's patch applier engine
 RUN --mount=type=tmpfs,target=/root/.bun/install/cache \
     cd opencode && bun install --no-save --linker=hoisted || true
+
+# Apply patches explicitly using POSIX GNU patch
+RUN cd opencode \
+ && patch -p1 -d node_modules/@ai-sdk/xai < patches/@ai-sdk-xai@3.0.82.patch \
+ && patch -p1 -d node_modules/@npmcli/agent < patches/@npmcli-agent@4.0.0.patch \
+ && patch -p1 -d node_modules/@silvia-odwyer/photon-node < patches/@silvia-odwyer-photon-node@0.3.4.patch \
+ && patch -p1 -d node_modules/@standard-community/standard-openapi < patches/@standard-community-standard-openapi@0.2.9.patch \
+ && patch -p1 -d node_modules/solid-js < patches/solid-js@1.9.10.patch
 
 # Verify what's present so the log gives us a clear before/after for the
 # packages bun complained about.
