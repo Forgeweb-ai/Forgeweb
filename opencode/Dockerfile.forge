@@ -39,9 +39,9 @@ COPY packages ./packages
 # patches/ holds bun patchedDependencies referenced in package.json.
 COPY patches ./patches
 
-# Strip ../forge-ui from workspaces and strip patchedDependencies so bun install
-# doesn't invoke Bun's buggy native patch applier on NAS storage.
-RUN jq '.workspaces.packages |= map(select(. != "../forge-ui")) | del(.patchedDependencies)' package.json > package.tmp.json \
+# Strip ../forge-ui from workspaces, strip patchedDependencies (to bypass Bun's buggy NAS patch applier),
+# and strip scripts.prepare (husky git hooks don't belong in container builds).
+RUN jq '.workspaces.packages |= map(select(. != "../forge-ui")) | del(.patchedDependencies) | del(.scripts.prepare)' package.json > package.tmp.json \
  && mv package.tmp.json package.json \
  && rm -rf packages/desktop
 

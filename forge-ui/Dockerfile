@@ -37,9 +37,9 @@ COPY opencode/packages         ./opencode/packages
 COPY opencode/patches          ./opencode/patches
 COPY forge-ui/package.json     ./forge-ui/
 
-# Drop unused workspace packages (desktop, console, storybook, docs, web) and strip patchedDependencies
+# Drop unused workspace packages (desktop, console, storybook, docs, web), strip patchedDependencies, and strip scripts.prepare
 RUN rm -rf opencode/packages/desktop opencode/packages/console opencode/packages/storybook opencode/packages/docs opencode/packages/web
-RUN jq 'del(.patchedDependencies)' opencode/package.json > opencode/package.tmp.json && mv opencode/package.tmp.json opencode/package.json
+RUN jq 'del(.patchedDependencies) | del(.scripts.prepare)' opencode/package.json > opencode/package.tmp.json && mv opencode/package.tmp.json opencode/package.json
 
 # Strip bunfig.toml's minimumReleaseAge before install.
 RUN sed -i '/minimumReleaseAge/d' opencode/bunfig.toml || true
